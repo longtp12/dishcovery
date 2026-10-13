@@ -1,0 +1,442 @@
+/* ---------- Theme tokens ---------- */
+:root,
+[data-theme='fresh'] {
+  --font: 'DM Sans', system-ui, sans-serif;
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --ink: #16201b;
+  --muted: #5b6660;
+  --visited: #0f6b5c;
+  --wishlist: #f08a24;
+  --accent: #0f6b5c;
+  --on-accent: #ffffff;
+  --radius: 16px;
+  --radius-pill: 999px;
+  --border: 1px solid rgba(22, 32, 27, 0.08);
+  --shadow: 0 6px 20px rgba(22, 32, 27, 0.12), 0 1px 3px rgba(22, 32, 27, 0.08);
+  --shadow-sm: 0 2px 8px rgba(22, 32, 27, 0.1);
+  --weight-strong: 600;
+  color-scheme: light;
+}
+
+[data-theme='night'] {
+  --font: 'Space Grotesk', system-ui, sans-serif;
+  --bg: #121417;
+  --surface: #1d2125;
+  --ink: #f2f2ee;
+  --muted: #a3a8ae;
+  --visited: #4fa393;
+  --wishlist: #f5a524;
+  --accent: #f5a524;
+  --on-accent: #121417;
+  --radius: 14px;
+  --border: 1px solid rgba(242, 242, 238, 0.08);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --weight-strong: 600;
+  color-scheme: dark;
+}
+
+[data-theme='pop'] {
+  --font: 'Bricolage Grotesque', system-ui, sans-serif;
+  --bg: #fff4d6;
+  --surface: #ffffff;
+  --ink: #111111;
+  --muted: #3d3d3d;
+  --visited: #1f4fd8;
+  --wishlist: #ff8a3d;
+  --accent: #1f4fd8;
+  --on-accent: #ffffff;
+  --radius: 14px;
+  --border: 2px solid #111111;
+  --shadow: 3px 3px 0 #111111;
+  --shadow-sm: 3px 3px 0 #111111;
+  --weight-strong: 700;
+  color-scheme: light;
+}
+
+/* ---------- Base ---------- */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+}
+
+/* ---------- Top overlay ---------- */
+.top-overlay {
+  position: absolute;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: calc(env(safe-area-inset-top) + 12px) 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.top-overlay > * {
+  pointer-events: auto;
+}
+
+.top-row {
+  display: flex;
+  gap: 10px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--surface);
+  color: var(--muted);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.search input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.search input:disabled {
+  cursor: default;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  padding: 0;
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease;
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 4px 6px 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 36px;
+  padding: 0 14px;
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.chip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.chip-visited .dot {
+  background: var(--visited);
+}
+
+.chip-wishlist .dot {
+  background: var(--wishlist);
+}
+
+.chip[aria-selected='true'] {
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: var(--weight-strong);
+}
+
+.chip-visited[aria-selected='true'] {
+  background: var(--visited);
+  color: #fff;
+}
+
+.chip-wishlist[aria-selected='true'] {
+  background: var(--wishlist);
+  color: #111;
+}
+
+.chip[aria-selected='true'] .dot {
+  background: currentColor;
+}
+
+/* ---------- Style switcher ---------- */
+.switcher {
+  position: relative;
+}
+
+.switcher-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 190px;
+  padding: 8px;
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.switcher-title {
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  background: none;
+  border-radius: calc(var(--radius) - 6px);
+  text-align: left;
+  font-size: 15px;
+}
+
+.switcher-item:hover,
+.switcher-item[aria-checked='true'] {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.switcher-label {
+  flex: 1;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex: none;
+}
+
+.swatch-fresh {
+  background: linear-gradient(135deg, #f6f7f5 50%, #0f6b5c 50%);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.swatch-night {
+  background: linear-gradient(135deg, #1d2125 50%, #f5a524 50%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.swatch-pop {
+  background: linear-gradient(135deg, #fff4d6 50%, #1f4fd8 50%);
+  border: 2px solid #111;
+  box-shadow: 2px 2px 0 #111;
+}
+
+/* ---------- Locate + toast ---------- */
+.locate-btn {
+  position: absolute;
+  z-index: 1000;
+  right: 16px;
+  bottom: 36px;
+  color: var(--accent);
+}
+
+.locate-btn.is-locating svg {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.toast {
+  position: absolute;
+  z-index: 1001;
+  left: 16px;
+  right: 80px;
+  bottom: 36px;
+  max-width: 420px;
+  padding: 12px 14px;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+/* ---------- Bottom tab bar ---------- */
+.tabbar {
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 8px calc(env(safe-area-inset-bottom) + 6px);
+  background: var(--surface);
+  border-top: var(--border);
+  position: relative;
+  z-index: 1000;
+}
+
+[data-theme='fresh'] .tabbar,
+[data-theme='night'] .tabbar {
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.tab {
+  flex: 1;
+  max-width: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.tab:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.tab.is-active {
+  color: var(--accent);
+  font-weight: var(--weight-strong);
+}
+
+[data-theme='pop'] .tab.is-active {
+  color: var(--ink);
+  background: var(--wishlist);
+  border: 2px solid #111;
+  box-shadow: 2px 2px 0 #111;
+}
+
+/* ---------- Leaflet overrides ---------- */
+.leaflet-container {
+  font-family: var(--font);
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent) !important;
+  color: var(--muted);
+}
+
+.leaflet-control-attribution a {
+  color: var(--muted);
+}
+
+.me-halo {
+  fill: var(--accent);
+  fill-opacity: 0.18;
+  stroke: none;
+}
+
+.me-dot {
+  fill: var(--accent);
+  fill-opacity: 1;
+  stroke: var(--surface);
+  stroke-width: 3;
+}
+
+[data-theme='night'] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6);
+}
+
+[data-theme='pop'] .leaflet-tile-pane {
+  filter: sepia(0.15) saturate(1.25);
+}
