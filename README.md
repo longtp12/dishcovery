@@ -2,7 +2,7 @@
 
 A free restaurant tracker: keep a map of the places you've visited and the ones on your wishlist.
 
-Built with React, TypeScript, Vite and Leaflet (OpenStreetMap / CARTO tiles — no paid APIs).
+Built with React, TypeScript, Vite and Leaflet, with a MapLibre vector basemap from OpenFreeMap (free, no API key).
 
 ## Develop
 
@@ -17,4 +17,4 @@ Pushing to `main` runs `.github/workflows/deploy.yml`, which builds the app and 
 
 ## Styles
 
-Three themes (Fresh, Night, Pop) are defined as CSS variables in `src/index.css` and map tiles in `src/themes.ts`. The chosen style is saved in `localStorage`.
+Three themes (Fresh, Night, Pop) are defined as CSS variables in `src/index.css`; the map is recoloured to match in `src/mapStyle.ts`. The chosen style is saved in `localStorage`.

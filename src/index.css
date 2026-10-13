@@ -420,23 +420,72 @@ input:focus-visible {
   color: var(--muted);
 }
 
-.me-halo {
-  fill: var(--accent);
-  fill-opacity: 0.18;
-  stroke: none;
+.me-marker {
+  position: relative;
+}
+
+.me-dot,
+.me-pulse {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .me-dot {
-  fill: var(--accent);
-  fill-opacity: 1;
-  stroke: var(--surface);
-  stroke-width: 3;
+  width: 16px;
+  height: 16px;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-[data-theme='night'] .leaflet-tile-pane {
+[data-theme='pop'] .me-dot {
+  border-color: #111;
+  box-shadow: 2px 2px 0 #111;
+}
+
+.me-pulse {
+  width: 44px;
+  height: 44px;
+  background: var(--accent);
+  opacity: 0;
+  animation: me-pulse 2.4s ease-out infinite;
+}
+
+@keyframes me-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* Vector basemap fades in once ready; the map background matches the theme meanwhile. */
+.leaflet-gl-layer {
+  animation: fade-in 0.4s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.leaflet-control-attribution {
+  border-radius: 8px 0 0 0;
+  padding: 2px 8px !important;
+}
+
+/* Raster fallback only: restyle OSM tiles to suit the theme. */
+[data-theme='night'] .raster-fallback {
   filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6);
 }
 
-[data-theme='pop'] .leaflet-tile-pane {
+[data-theme='pop'] .raster-fallback {
   filter: sepia(0.15) saturate(1.25);
 }

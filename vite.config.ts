@@ -5,4 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/dishcovery/',
   plugins: [react()],
+  // Pre-bundle these together so the Leaflet bridge and our code share one MapLibre instance.
+  optimizeDeps: {
+    include: ['maplibre-gl', '@maplibre/maplibre-gl-leaflet'],
+  },
 })
