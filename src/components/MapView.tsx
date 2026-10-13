@@ -3,8 +3,8 @@ import { CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet'
 import type { LatLngTuple } from 'leaflet'
 import type { ThemeConfig } from '../themes'
 
-// Used until (or if) the browser shares a location: Ho Chi Minh City centre.
-const FALLBACK_CENTER: LatLngTuple = [10.7769, 106.7009]
+// Used until (or if) the browser shares a location: Hanoi centre (Hoàn Kiếm Lake).
+const FALLBACK_CENTER: LatLngTuple = [21.0285, 105.8542]
 const FALLBACK_ZOOM = 13
 const LOCATED_ZOOM = 15
 
