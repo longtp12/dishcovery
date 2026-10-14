@@ -9,15 +9,23 @@ import { BookmarkIcon, ImportIcon, LocateIcon, MapIcon } from './components/Icon
 import { googlePlaceInfo, matchGooglePlace, resolveGoogleLink, type GoogleLink } from './gmaps'
 import { searchLoadedFood } from './mapFeatures'
 import { lookupPlace, reverseGeocode } from './osm'
-import { usePlaces, type PlaceInfo, type PlaceStatus } from './places'
+import { isSharedCopy, samePlace, usePlaces, type Place, type PlaceInfo, type PlaceStatus, type SharedPlace } from './places'
 import { THEMES, loadTheme, saveTheme, type ThemeId } from './themes'
 
 type Filter = 'all' | 'wishlist' | 'visited'
 
 type Selection =
-  | { type: 'saved'; id: string }
+  /** `pending` is shown until the just-saved place arrives from storage, so the sheet doesn't blink. */
+  | { type: 'saved'; id: string; pending?: Place }
   | { type: 'candidate'; info: PlaceInfo; custom: boolean }
+  | { type: 'community'; id: string }
   | null
+
+/** The plain place details of a community place, linked to it, ready to save. */
+function sharedInfo(s: SharedPlace): PlaceInfo {
+  const { name, lat, lng, osmId, kind, cuisine, address, openingHours, googleUrl, googleId } = s
+  return { name, lat, lng, osmId, kind, cuisine, address, openingHours, googleUrl, googleId, sharedId: s.id, source: 'google' }
+}
 
 export default function App() {
   const [themeId, setThemeId] = useState<ThemeId>(loadTheme)
@@ -31,7 +39,7 @@ export default function App() {
   const mapRef = useRef<LeafletMap | null>(null)
   const glRef = useRef<GLMap | null>(null)
   const detailsAbort = useRef<AbortController | null>(null)
-  const { places, save, update, remove, cloud, message, clearMessage } = usePlaces()
+  const { places, save, update, remove, community, renameShared, removeShared, cloud, message, clearMessage } = usePlaces()
   const theme = THEMES[themeId]
 
   useEffect(() => {
@@ -94,16 +102,38 @@ export default function App() {
     [places, filter],
   )
 
-  const selectedPlace = selection?.type === 'saved' ? places.find((p) => p.id === selection.id) : undefined
+  // Community places you already have are shown as your own pins instead.
+  const visibleCommunity = useMemo(
+    () => (filter === 'all' ? community.filter((s) => !places.some((p) => isSharedCopy(p, s))) : []),
+    [community, places, filter],
+  )
+
+  const selectedPlace =
+    selection?.type === 'saved' ? (places.find((p) => p.id === selection.id) ?? selection.pending) : undefined
   const candidate = selection?.type === 'candidate' ? selection.info : null
+  useEffect(() => {
+    if (selection?.type === 'saved' && selection.pending && places.some((p) => p.id === selection.id)) {
+      setSelection({ type: 'saved', id: selection.id })
+    }
+  }, [selection, places])
+  const selectedShared = selection?.type === 'community' ? community.find((s) => s.id === selection.id) : undefined
+  // The community place behind whatever is shown, for "added by" and the adder's controls.
+  const sheetShared =
+    selectedShared ??
+    (selectedPlace?.sharedId ? community.find((s) => s.id === selectedPlace.sharedId) : undefined)
 
   /** Show an unsaved place; fill in cuisine/address/hours in the background. */
   const showCandidate = useCallback(
     (info: PlaceInfo, custom = false) => {
       detailsAbort.current?.abort()
-      const already = info.osmId ? places.find((p) => p.osmId === info.osmId) : undefined
+      const already = places.find((p) => samePlace(info, p))
       if (already) {
         setSelection({ type: 'saved', id: already.id })
+        return
+      }
+      const shared = community.find((s) => samePlace(info, s))
+      if (shared) {
+        setSelection({ type: 'community', id: shared.id })
         return
       }
       setSelection({ type: 'candidate', info, custom })
@@ -132,7 +162,7 @@ export default function App() {
           if (detailsAbort.current === ctrl) setLoadingDetails(false)
         })
     },
-    [places],
+    [places, community],
   )
 
   const closeSheet = useCallback(() => {
@@ -147,10 +177,13 @@ export default function App() {
       setNotice(status === 'visited' ? `Marked ${selectedPlace.name} as visited` : `Moved ${selectedPlace.name} to your wishlist`)
       return
     }
-    if (selection?.type === 'candidate') {
-      const info = { ...selection.info, name: name || selection.info.name }
+    const fromCommunity = selection?.type === 'community' && selectedShared ? sharedInfo(selectedShared) : null
+    if (selection?.type === 'candidate' || fromCommunity) {
+      const base = fromCommunity ?? (selection as Extract<Selection, { type: 'candidate' }>).info
+      const info = { ...base, name: name || base.name }
       const id = save(info, status)
-      setSelection({ type: 'saved', id })
+      const now = Date.now()
+      setSelection({ type: 'saved', id, pending: { ...info, id, status, addedAt: now, visitedAt: status === 'visited' ? now : undefined } })
       const saved = status === 'visited' ? `Saved ${info.name} as visited` : `Added ${info.name} to your wishlist`
       setNotice(cloud.enabled && !cloud.user ? `${saved} on this device. Sign in from the menu ↗ to keep it in your account.` : saved)
       if (filter !== 'all' && filter !== status) setFilter('all')
@@ -224,7 +257,7 @@ export default function App() {
         const sel = selectionRef.current
         const stillShowing = sel?.type === 'candidate' && sel.info.googleUrl === pin.googleUrl
         if (match && stillShowing && !ctrl.signal.aborted) {
-          showCandidate({ ...match, name: pin.name, source: 'google', googleUrl: pin.googleUrl })
+          showCandidate({ ...match, name: pin.name, source: 'google', googleUrl: pin.googleUrl, googleId: pin.googleId })
         }
         return
       }
@@ -242,14 +275,14 @@ export default function App() {
         return
       }
       setNotice(null)
-      showCandidate({ ...match, source: 'google', googleUrl: link.url })
+      showCandidate({ ...match, source: 'google', googleUrl: link.url, googleId: link.kind === 'full' ? link.googleId : undefined })
       flyTo(match.lat, match.lng)
     } catch (err) {
       if ((err as Error).name !== 'AbortError') setNotice('Couldn’t look up that place. Check your connection and try again.')
     }
   }
 
-  const sheetPlace = selectedPlace ?? candidate
+  const sheetPlace = selectedPlace ?? candidate ?? (selectedShared ? sharedInfo(selectedShared) : null)
 
   return (
     <div className="app">
@@ -261,8 +294,11 @@ export default function App() {
           places={visiblePlaces}
           selectedId={selectedPlace?.id ?? null}
           candidate={candidate}
+          community={visibleCommunity}
+          selectedCommunityId={selectedShared?.id ?? null}
           focus={focus}
           onSelectPlace={(id) => setSelection({ type: 'saved', id })}
+          onSelectCommunity={(id) => setSelection({ type: 'community', id })}
           onPickFeature={(info) => showCandidate(info)}
           onLongPress={(lat, lng) => {
             showCandidate({ name: '', lat, lng, source: 'custom' }, true)
@@ -331,6 +367,18 @@ export default function App() {
             place={sheetPlace}
             custom={selection?.type === 'candidate' && selection.custom}
             loadingDetails={loadingDetails}
+            community={
+              sheetShared && {
+                addedByName: sheetShared.addedByName,
+                mine: sheetShared.addedBy === cloud.user?.uid,
+                onRename: (name) => renameShared(sheetShared.id, name),
+                onRemove: () => {
+                  removeShared(sheetShared.id)
+                  setNotice(`Removed ${sheetShared.name} from community places`)
+                  if (selection?.type === 'community') setSelection(null)
+                },
+              }
+            }
             onSave={handleSave}
             onRemove={handleRemove}
             onClose={closeSheet}

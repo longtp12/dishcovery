@@ -4,7 +4,8 @@ import type { PlaceInfo } from './places'
 import { fold } from './text'
 
 export type GoogleLink =
-  | { kind: 'full'; name?: string; lat?: number; lng?: number; url: string }
+  /** `googleId` is Google's own id for the place (e.g. "0x313…:0x8f…"), when the link has one. */
+  | { kind: 'full'; name?: string; lat?: number; lng?: number; googleId?: string; url: string }
   /** Short share links can't be opened from the browser; `name` comes from the shared text, if any. */
   | { kind: 'short'; name?: string; url: string }
 
@@ -94,7 +95,20 @@ export function parseGoogleMapsLink(input: string): GoogleLink | null {
   name ??= sharedName
   if (!validCoords(lat, lng)) [lat, lng] = [undefined, undefined]
   if (!name && lat === undefined) return null
-  return { kind: 'full', name, lat, lng, url: href }
+  return { kind: 'full', name, lat, lng, googleId: googlePlaceId(url), url: href }
+}
+
+/** Google's id for the place: the "feature id" in /data=…!1s0x…:0x…, or an explicit place id parameter. */
+function googlePlaceId(url: URL): string | undefined {
+  const href = decode(url.href)
+  const id =
+    href.match(/!1s(0x[0-9a-f]+:0x[0-9a-f]+)/i)?.[1] ??
+    url.searchParams.get('ftid') ??
+    url.searchParams.get('query_place_id') ??
+    url.searchParams.get('place_id') ??
+    href.match(/!19s(ChIJ[\w-]+)/)?.[1]
+  if (!id || id.length > 120) return undefined
+  return id.startsWith('0x') ? id.toLowerCase() : id
 }
 
 /** First meaningful line of the text around a shared link, e.g. "Phở Thìn Lò Đúc". */
@@ -190,5 +204,12 @@ export async function matchGooglePlace(
 
 export function googlePlaceInfo(link: Extract<GoogleLink, { kind: 'full' }>): PlaceInfo | null {
   if (link.lat === undefined || link.lng === undefined) return null
-  return { name: link.name ?? '', lat: link.lat, lng: link.lng, source: 'google', googleUrl: link.url }
+  return {
+    name: link.name ?? '',
+    lat: link.lat,
+    lng: link.lng,
+    source: 'google',
+    googleUrl: link.url,
+    googleId: link.googleId,
+  }
 }

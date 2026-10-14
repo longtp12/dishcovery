@@ -19,25 +19,29 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
   setDoc,
+  updateDoc,
   writeBatch,
 } from 'firebase/firestore'
 import { firebaseConfig, useEmulators, type Cloud } from './cloud'
-import type { Place } from './places'
+import type { Place, SharedPlace } from './places'
 
 /** Fields we store; anything else on the object is dropped (keeps the security rules simple). */
-const FIELDS = [
-  'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'source',
-  'status', 'addedAt', 'visitedAt',
+const INFO_FIELDS = [
+  'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
 ] as const
+const PLACE_FIELDS = [...INFO_FIELDS, 'sharedId', 'source', 'status', 'addedAt', 'visitedAt'] as const
+const SHARED_FIELDS = [...INFO_FIELDS, 'addedBy', 'addedByName', 'createdAt'] as const
 
-function toDoc(place: Place) {
+function pick<T extends object>(obj: T, fields: readonly (keyof T)[]) {
   const out: Record<string, unknown> = { updatedAt: Date.now() }
-  for (const key of FIELDS) {
-    const value = place[key]
-    if (value !== undefined && value !== null && value !== '') out[key] = value
+  for (const key of fields) {
+    const value = obj[key]
+    if (value !== undefined && value !== null && value !== '') out[key as string] = value
   }
   return out
 }
+
+const toDoc = (place: Place) => pick(place, PLACE_FIELDS)
 
 export function createCloud(): Cloud {
   const app = initializeApp(firebaseConfig)
@@ -54,6 +58,7 @@ export function createCloud(): Cloud {
   }
 
   const placesCol = (uid: string) => collection(db, 'users', uid, 'places')
+  const sharedCol = collection(db, 'sharedPlaces')
 
   return {
     onUser(cb) {
@@ -112,5 +117,19 @@ export function createCloud(): Cloud {
       }
       return fresh.length
     },
+
+    watchShared(cb, onError) {
+      return onSnapshot(
+        sharedCol,
+        (snap) => cb(snap.docs.map((d) => ({ ...(d.data() as Omit<SharedPlace, 'id' | 'source'>), id: d.id, source: 'google' }))),
+        onError,
+      )
+    },
+
+    addShared: (place) => setDoc(doc(sharedCol, place.id), pick(place, SHARED_FIELDS)),
+
+    updateShared: (id, patch) => updateDoc(doc(sharedCol, id), { ...patch, updatedAt: Date.now() }),
+
+    deleteShared: (id) => deleteDoc(doc(sharedCol, id)),
   }
 }

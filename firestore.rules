@@ -1,37 +1,79 @@
 rules_version = '2';
 
-// Each signed-in user can only read and write their own places: users/{uid}/places/{placeId}.
+// users/{uid}/places/{placeId}: each signed-in user's own places (only they can read/write).
+// sharedPlaces/{id}: community places added from Google Maps links. Every signed-in user can read
+//   and add them; only the person who added one can edit or delete it.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
     function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function optString(d, key, max) {
+      return !(key in d) || (d[key] is string && d[key].size() <= max);
+    }
+
+    // Name, location and the optional details every kind of place may carry.
+    function validInfo(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 200
+        && d.lat is number && d.lat >= -90 && d.lat <= 90
+        && d.lng is number && d.lng >= -180 && d.lng <= 180
+        && optString(d, 'osmId', 40)
+        && optString(d, 'kind', 80)
+        && optString(d, 'cuisine', 200)
+        && optString(d, 'address', 300)
+        && optString(d, 'openingHours', 300)
+        && optString(d, 'googleUrl', 2000)
+        && optString(d, 'googleId', 120)
+        && (!('updatedAt' in d) || d.updatedAt is number);
     }
 
     function validPlace(d) {
       return d.keys().hasOnly([
-          'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl',
-          'source', 'status', 'addedAt', 'visitedAt', 'updatedAt'
+          'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
+          'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt'
         ])
         && d.keys().hasAll(['name', 'lat', 'lng', 'status', 'source', 'addedAt'])
-        && d.name is string && d.name.size() > 0 && d.name.size() <= 200
-        && d.lat is number && d.lat >= -90 && d.lat <= 90
-        && d.lng is number && d.lng >= -180 && d.lng <= 180
+        && validInfo(d)
         && d.status in ['wishlist', 'visited']
         && d.source in ['map', 'search', 'custom', 'google']
         && d.addedAt is number
         && (!('visitedAt' in d) || d.visitedAt is number)
-        && (!('updatedAt' in d) || d.updatedAt is number)
-        && (!('osmId' in d) || (d.osmId is string && d.osmId.size() <= 40))
-        && (!('kind' in d) || (d.kind is string && d.kind.size() <= 80))
-        && (!('cuisine' in d) || (d.cuisine is string && d.cuisine.size() <= 200))
-        && (!('address' in d) || (d.address is string && d.address.size() <= 300))
-        && (!('openingHours' in d) || (d.openingHours is string && d.openingHours.size() <= 300))
-        && (!('googleUrl' in d) || (d.googleUrl is string && d.googleUrl.size() <= 2000));
+        && optString(d, 'sharedId', 64);
+    }
+
+    function validShared(d) {
+      return d.keys().hasOnly([
+          'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
+          'addedBy', 'addedByName', 'createdAt', 'updatedAt'
+        ])
+        && d.keys().hasAll(['name', 'lat', 'lng', 'googleUrl', 'addedBy', 'addedByName', 'createdAt'])
+        && validInfo(d)
+        && d.googleUrl.size() > 0
+        && d.addedByName is string && d.addedByName.size() > 0 && d.addedByName.size() <= 100
+        && d.createdAt is number;
     }
 
     match /users/{uid}/places/{placeId} {
       allow read, delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && placeId.size() <= 64 && validPlace(request.resource.data);
+    }
+
+    match /sharedPlaces/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && id.size() <= 64
+        && validShared(request.resource.data)
+        && request.resource.data.addedBy == request.auth.uid;
+      // Only the adder; who added it and when can't change.
+      allow update: if signedIn() && resource.data.addedBy == request.auth.uid
+        && validShared(request.resource.data)
+        && request.resource.data.addedBy == resource.data.addedBy
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if signedIn() && resource.data.addedBy == request.auth.uid;
     }
 
     // Everything else is closed.

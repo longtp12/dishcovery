@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { googleMapsUrl } from '../osm'
 import type { Place, PlaceInfo, PlaceStatus } from '../places'
-import { BookmarkIcon, CheckIcon, ClockIcon, CloseIcon, DirectionsIcon, PinIcon, TrashIcon } from './Icons'
+import { BookmarkIcon, CheckIcon, ClockIcon, CloseIcon, DirectionsIcon, EditIcon, PeopleIcon, PinIcon, TrashIcon } from './Icons'
 
 interface Props {
   /** The place being shown: a saved place, or an unsaved one. */
@@ -9,9 +9,19 @@ interface Props {
   /** True for a pin the user dropped themselves (needs a name). */
   custom: boolean
   loadingDetails: boolean
+  /** Set when the place is (or is linked to) a community place. */
+  community?: CommunityInfo
   onSave: (status: PlaceStatus, name: string) => void
   onRemove: () => void
   onClose: () => void
+}
+
+export interface CommunityInfo {
+  addedByName: string
+  /** The current user added it, so they may rename or remove it. */
+  mine: boolean
+  onRename: (name: string) => void
+  onRemove: () => void
 }
 
 const isSaved = (p: Place | PlaceInfo): p is Place => 'status' in p
@@ -20,14 +30,16 @@ function formatDate(ts: number) {
   return new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function PlaceSheet({ place, custom, loadingDetails, onSave, onRemove, onClose }: Props) {
+export default function PlaceSheet({ place, custom, loadingDetails, community, onSave, onRemove, onClose }: Props) {
   const saved = isSaved(place) ? place : null
   const [name, setName] = useState(place.name)
+  const [renaming, setRenaming] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const placeKey = saved?.id ?? `${place.lat},${place.lng}`
 
   useEffect(() => {
     setName(place.name)
+    setRenaming(false)
     if (custom && !place.name) setTimeout(() => inputRef.current?.focus(), 250)
     // Reset only when a different place is shown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -40,7 +52,13 @@ export default function PlaceSheet({ place, custom, loadingDetails, onSave, onRe
   }, [onClose])
 
   const trimmed = name.trim()
-  const canSave = trimmed.length > 0
+  const canSave = renaming || trimmed.length > 0
+
+  const finishRename = () => {
+    if (trimmed && trimmed !== place.name) community?.onRename(trimmed)
+    else setName(place.name)
+    setRenaming(false)
+  }
   const meta = [place.kind, place.cuisine].filter(Boolean).join(' · ')
 
   return (
@@ -48,7 +66,26 @@ export default function PlaceSheet({ place, custom, loadingDetails, onSave, onRe
       <div className="sheet-grip" aria-hidden />
       <div className="sheet-head">
         <div className="sheet-title-wrap">
-          {custom && !saved ? (
+          {renaming ? (
+            <input
+              ref={inputRef}
+              className="sheet-name-input"
+              value={name}
+              maxLength={80}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+              onBlur={finishRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') finishRename()
+                if (e.key === 'Escape') {
+                  e.stopPropagation()
+                  setName(place.name)
+                  setRenaming(false)
+                }
+              }}
+              aria-label="Community place name"
+            />
+          ) : custom && !saved ? (
             <input
               ref={inputRef}
               className="sheet-name-input"
@@ -66,6 +103,12 @@ export default function PlaceSheet({ place, custom, loadingDetails, onSave, onRe
             <p className="sheet-meta">{meta}</p>
           ) : (
             loadingDetails && <p className="sheet-meta skeleton">Loading details…</p>
+          )}
+          {community && (
+            <p className="sheet-community">
+              <PeopleIcon />
+              <span>Community pick · added by {community.mine ? 'you' : community.addedByName}</span>
+            </p>
           )}
         </div>
         <button className="sheet-close" aria-label="Close" onClick={onClose}>
@@ -124,6 +167,23 @@ export default function PlaceSheet({ place, custom, loadingDetails, onSave, onRe
           <DirectionsIcon />
           Open in Google Maps
         </a>
+        {community?.mine && !renaming && (
+          <button
+            onClick={() => {
+              setName(place.name)
+              setRenaming(true)
+            }}
+          >
+            <EditIcon />
+            Rename
+          </button>
+        )}
+        {community?.mine && (
+          <button className="link-danger" onClick={community.onRemove}>
+            <TrashIcon />
+            Remove from community
+          </button>
+        )}
         {saved && (
           <button className="link-danger" onClick={onRemove}>
             <TrashIcon />

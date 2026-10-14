@@ -666,6 +666,19 @@ input:focus-visible {
   color: var(--muted);
 }
 
+.sheet-community {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.sheet-community svg {
+  flex: none;
+}
+
 .sheet-meta.skeleton {
   animation: pulse 1.2s ease-in-out infinite;
 }
@@ -774,9 +787,10 @@ input:focus-visible {
 
 .sheet-links {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 16px;
   margin-top: 14px;
   font-size: 14px;
 }
@@ -835,6 +849,16 @@ input:focus-visible {
   background: var(--ink);
   color: var(--surface);
   animation: pin-drop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+
+.pin-community .pin-body {
+  background: var(--surface);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pin-community:not(.is-selected) {
+  opacity: 0.92;
 }
 
 .pin.is-selected .pin-body {

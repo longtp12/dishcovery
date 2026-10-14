@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cloudConfigured, getCloud, type Cloud, type CloudUser } from './cloud'
+import { metresBetween } from './gmaps'
+import { fold } from './text'
 
 export type PlaceStatus = 'wishlist' | 'visited'
 export type PlaceSource = 'map' | 'search' | 'custom' | 'google'
@@ -19,8 +21,51 @@ export interface PlaceInfo {
   openingHours?: string
   /** The Google Maps link the place was added from, if any. */
   googleUrl?: string
+  /** Google's own id for the place, when the link had one. */
+  googleId?: string
+  /** The community place (sharedPlaces/{id}) this place is linked to. */
+  sharedId?: string
   source: PlaceSource
 }
+
+/** A place someone added from a Google Maps link; every signed-in user can see it. */
+export interface SharedPlace extends PlaceInfo {
+  id: string
+  addedBy: string
+  addedByName: string
+  createdAt: number
+}
+
+/** Places this close with the same name are treated as the same place. */
+const SAME_SPOT_METRES = 30
+
+export function samePlace(a: PlaceInfo, b: PlaceInfo): boolean {
+  if (a.osmId && a.osmId === b.osmId) return true
+  if (a.googleId && a.googleId === b.googleId) return true
+  if (a.googleUrl && a.googleUrl === b.googleUrl) return true
+  const name = fold(a.name.trim())
+  return name.length > 0 && name === fold(b.name.trim()) && metresBetween(a.lat, a.lng, b.lat, b.lng) <= SAME_SPOT_METRES
+}
+
+/** Is this saved place the same as that community place? */
+export const isSharedCopy = (p: PlaceInfo, s: SharedPlace) => p.sharedId === s.id || samePlace(p, s)
+
+/** 53-bit string hash (cyrb53), as hex. */
+function hash(str: string) {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i)
+    h1 = Math.imul(h1 ^ ch, 2654435761)
+    h2 = Math.imul(h2 ^ ch, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16)
+}
+
+/** Community place ids come from the Google place, so two people adding the same link land on one doc. */
+const sharedIdFor = (info: PlaceInfo) => `g-${hash(info.googleId ? `id:${info.googleId}` : `url:${info.googleUrl}`)}`
 
 export interface Place extends PlaceInfo {
   id: string
@@ -77,6 +122,7 @@ export function usePlaces() {
   const [cloudPlaces, setCloudPlaces] = useState<Place[] | null>(null)
   const [online, setOnline] = useState(() => navigator.onLine)
   const [message, setMessage] = useState<string | null>(null)
+  const [community, setCommunity] = useState<SharedPlace[]>([])
   const cloudRef = useRef<Cloud | null>(null)
 
   useEffect(() => write(localPlaces), [localPlaces])
@@ -142,6 +188,60 @@ export function usePlaces() {
     )
   }, [user])
 
+  // Signed in: follow the community places (signed-out users don't see them).
+  useEffect(() => {
+    const c = cloudRef.current
+    if (!user || !c) {
+      setCommunity([])
+      return
+    }
+    return c.watchShared(setCommunity, () => setMessage('Couldn’t load community places.'))
+  }, [user])
+
+  /**
+   * Places added from a Google Maps link are shared with the community (once; matching
+   * places already there are reused). Returns the community id to link the saved place to.
+   */
+  const share = useCallback(
+    (info: PlaceInfo): string | undefined => {
+      const c = cloudRef.current
+      if (info.sharedId) return info.sharedId
+      if (!user || !c || info.source !== 'google' || !info.googleUrl || !info.name.trim()) return undefined
+      const existing = community.find((s) => samePlace(info, s))
+      if (existing) return existing.id
+      const { name, lat, lng, googleUrl, googleId, osmId, kind, cuisine, address, openingHours } = info
+      const shared: SharedPlace = {
+        id: sharedIdFor(info),
+        name: name.trim(),
+        lat,
+        lng,
+        googleUrl,
+        googleId,
+        osmId,
+        kind,
+        cuisine,
+        address,
+        openingHours,
+        source: 'google',
+        addedBy: user.uid,
+        addedByName: displayName(user),
+        createdAt: Date.now(),
+      }
+      // If someone else added it at the same moment, theirs is the community copy; that's fine.
+      c.addShared(shared).catch(() => {})
+      return shared.id
+    },
+    [user, community],
+  )
+
+  const renameShared = useCallback((id: string, name: string) => {
+    cloudRef.current?.updateShared(id, { name }).catch(() => setMessage('Couldn’t rename that community place.'))
+  }, [])
+
+  const removeShared = useCallback((id: string) => {
+    cloudRef.current?.deleteShared(id).catch(() => setMessage('Couldn’t remove that community place.'))
+  }, [])
+
   const places = useMemo(() => (user ? (cloudPlaces ?? []) : localPlaces), [user, cloudPlaces, localPlaces])
   const syncState: SyncState = !user ? 'local' : cloudPlaces === null ? 'connecting' : online ? 'synced' : 'offline'
 
@@ -165,16 +265,17 @@ export function usePlaces() {
       const match = places.find(
         (p) => p.id === existingId || (info.osmId !== undefined && p.osmId === info.osmId),
       )
+      const sharedId = share(match ? { ...info, sharedId: info.sharedId ?? match.sharedId } : info)
       if (match) {
         const visitedAt = status === 'visited' ? (match.visitedAt ?? now) : undefined
-        persist({ ...match, ...info, id: match.id, source: match.source, status, visitedAt })
+        persist({ ...match, ...info, id: match.id, source: match.source, sharedId, status, visitedAt })
         return match.id
       }
       const id = newId()
-      persist({ ...info, id, status, addedAt: now, visitedAt: status === 'visited' ? now : undefined })
+      persist({ ...info, id, sharedId, status, addedAt: now, visitedAt: status === 'visited' ? now : undefined })
       return id
     },
-    [places, persist],
+    [places, persist, share],
   )
 
   const update = useCallback(
@@ -217,11 +318,16 @@ export function usePlaces() {
     save,
     update,
     remove,
+    community,
+    renameShared,
+    removeShared,
     cloud: { enabled: cloudConfigured, ready: authReady, user, syncState, signIn, signOut },
     message,
     clearMessage,
   }
 }
+
+export const displayName = (u: CloudUser) => u.name?.trim() || u.email?.split('@')[0] || 'Someone'
 
 const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 

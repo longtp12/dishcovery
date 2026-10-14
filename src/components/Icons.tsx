@@ -106,3 +106,18 @@ export const CloudIcon = ({ size = 16 }: IconProps) => (
     <path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18Z" />
   </svg>
 )
+
+export const PeopleIcon = ({ size = 16 }: IconProps) => (
+  <svg {...base(size)}>
+    <circle cx="9" cy="9" r="3" />
+    <path d="M3.8 18.5c.4-2.8 2.4-4.4 5.2-4.4s4.8 1.6 5.2 4.4" />
+    <circle cx="16.6" cy="9.4" r="2.3" />
+    <path d="M16 14.2c2.4.1 4 1.5 4.3 4" />
+  </svg>
+)
+
+export const EditIcon = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" />
+  </svg>
+)

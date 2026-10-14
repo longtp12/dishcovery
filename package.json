@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "emulators": "firebase emulators:start --only auth,firestore --project demo-dishcovery"
+    "emulators": "firebase emulators:start --only auth,firestore --project demo-dishcovery",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-dishcovery 'node --test tests/'"
   },
   "dependencies": {
     "@maplibre/maplibre-gl-leaflet": "^0.1.4",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@types/leaflet": "^1.9.22",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

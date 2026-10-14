@@ -4,7 +4,7 @@ import L, { type LatLngTuple, type Map as LeafletMap } from 'leaflet'
 import type { Map as GLMap } from 'maplibre-gl'
 import { FOOD_LAYER_IDS } from '../mapStyle'
 import { featureToPlace } from '../mapFeatures'
-import type { Place, PlaceInfo } from '../places'
+import type { Place, PlaceInfo, SharedPlace } from '../places'
 import type { ThemeConfig } from '../themes'
 
 // MapLibre is large, so load it in its own chunk after the app shell renders.
@@ -28,6 +28,8 @@ const PIN_SVG = {
   visited:
     '<path d="m6.5 12.5 3.6 3.6 7.4-8.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
   new: '<path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>',
+  community:
+    '<g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="9" r="3"/><path d="M3.8 18.5c.4-2.8 2.4-4.4 5.2-4.4s4.8 1.6 5.2 4.4"/><circle cx="16.6" cy="9.4" r="2.3"/><path d="M16 14.2c2.4.1 4 1.5 4.3 4"/></g>',
 }
 
 function pinIcon(kind: keyof typeof PIN_SVG, selected: boolean) {
@@ -129,8 +131,12 @@ interface Props {
   selectedId: string | null
   /** An unsaved place being looked at (tapped restaurant, search result, dropped pin). */
   candidate: PlaceInfo | null
+  /** Places other people added from Google Maps links (not already in your places). */
+  community: SharedPlace[]
+  selectedCommunityId: string | null
   focus: FocusRequest | null
   onSelectPlace: (id: string) => void
+  onSelectCommunity: (id: string) => void
   onPickFeature: (place: PlaceInfo) => void
   onLongPress: (lat: number, lng: number) => void
   onBackgroundClick: () => void
@@ -145,8 +151,11 @@ export default function MapView({
   places,
   selectedId,
   candidate,
+  community,
+  selectedCommunityId,
   focus,
   onSelectPlace,
+  onSelectCommunity,
   onPickFeature,
   onLongPress,
   onBackgroundClick,
@@ -166,6 +175,8 @@ export default function MapView({
       wishlistSel: pinIcon('wishlist', true),
       visitedSel: pinIcon('visited', true),
       new: pinIcon('new', true),
+      community: pinIcon('community', false),
+      communitySel: pinIcon('community', true),
     }),
     [],
   )
@@ -195,6 +206,16 @@ export default function MapView({
           zIndexOffset={p.id === selectedId ? 1000 : 0}
           title={p.name}
           eventHandlers={{ click: () => onSelectPlace(p.id) }}
+        />
+      ))}
+      {community.map((s) => (
+        <Marker
+          key={`c-${s.id}`}
+          position={[s.lat, s.lng]}
+          icon={s.id === selectedCommunityId ? icons.communitySel : icons.community}
+          zIndexOffset={s.id === selectedCommunityId ? 1000 : -100}
+          title={`${s.name} · added by ${s.addedByName}`}
+          eventHandlers={{ click: () => onSelectCommunity(s.id) }}
         />
       ))}
       {candidate && (

@@ -1,4 +1,4 @@
-import type { Place } from './places'
+import type { Place, SharedPlace } from './places'
 
 /**
  * Optional cloud sync (Firebase Auth + Firestore, free Spark plan).
@@ -39,6 +39,12 @@ export interface Cloud {
   deletePlace(uid: string, id: string): Promise<void>
   /** Copies places that aren't in the account yet (matched by id or OSM id). Returns how many were added. */
   migrate(uid: string, local: Place[]): Promise<number>
+
+  /** Community places (sharedPlaces/{id}), readable by every signed-in user. */
+  watchShared(cb: (places: SharedPlace[]) => void, onError: (err: Error) => void): () => void
+  addShared(place: SharedPlace): Promise<void>
+  updateShared(id: string, patch: { name: string }): Promise<void>
+  deleteShared(id: string): Promise<void>
 }
 
 let cloud: Promise<Cloud> | null = null
