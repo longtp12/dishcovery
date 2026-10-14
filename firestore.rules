@@ -3,6 +3,8 @@ rules_version = '2';
 // users/{uid}/places/{placeId}: each signed-in user's own places (only they can read/write).
 // sharedPlaces/{id}: community places added from Google Maps links. Every signed-in user can read
 //   and add them; only the person who added one can edit or delete it.
+// lists/{listId}: shared lists. Members are invited by (verified) Google email; only the owner can
+//   rename, change members or delete. lists/{listId}/places/{placeId}: any member can read and write.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -37,7 +39,11 @@ service cloud.firestore {
           'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
           'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt'
         ])
-        && d.keys().hasAll(['name', 'lat', 'lng', 'status', 'source', 'addedAt'])
+        && placeFields(d);
+    }
+
+    function placeFields(d) {
+      return d.keys().hasAll(['name', 'lat', 'lng', 'status', 'source', 'addedAt'])
         && validInfo(d)
         && d.status in ['wishlist', 'visited']
         && d.source in ['map', 'search', 'custom', 'google']
@@ -58,6 +64,46 @@ service cloud.firestore {
         && d.createdAt is number;
     }
 
+    // A list place: a place plus who added it, who visited it and who changed it last.
+    function validListPlace(d) {
+      return d.keys().hasOnly([
+          'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
+          'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt',
+          'addedBy', 'addedByName', 'visitedBy', 'visitedByName', 'updatedBy'
+        ])
+        && placeFields(d)
+        && d.keys().hasAll(['addedBy', 'addedByName', 'updatedBy'])
+        && d.addedBy is string
+        && d.addedByName is string && d.addedByName.size() <= 100
+        && d.updatedBy == request.auth.uid
+        && optString(d, 'visitedBy', 128)
+        && optString(d, 'visitedByName', 100);
+    }
+
+    function validList(d) {
+      return d.keys().hasOnly(['name', 'ownerUid', 'ownerName', 'memberEmails', 'memberUids', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['name', 'ownerUid', 'ownerName', 'memberEmails', 'memberUids', 'createdAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && d.ownerName is string && d.ownerName.size() <= 100
+        && d.memberEmails is list && d.memberEmails.size() <= 50
+        && d.memberUids is list && d.memberUids.size() <= 60
+        && d.createdAt is number
+        && (!('updatedAt' in d) || d.updatedAt is number);
+    }
+
+    // The signed-in user's email, if Google has verified it (otherwise '', which matches no invite).
+    function myEmail() {
+      return request.auth.token.get('email_verified', false) == true ? request.auth.token.get('email', '') : '';
+    }
+
+    function isInvited(list) {
+      return myEmail() != '' && myEmail() in list.memberEmails;
+    }
+
+    function isMember(list) {
+      return signedIn() && (list.ownerUid == request.auth.uid || isInvited(list));
+    }
+
     match /users/{uid}/places/{placeId} {
       allow read, delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && placeId.size() <= 64 && validPlace(request.resource.data);
@@ -74,6 +120,59 @@ service cloud.firestore {
         && request.resource.data.addedBy == resource.data.addedBy
         && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if signedIn() && resource.data.addedBy == request.auth.uid;
+    }
+
+    match /lists/{listId} {
+      allow read: if isMember(resource.data);
+      allow create: if signedIn()
+        && validList(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids == [request.auth.uid];
+      allow update: if signedIn()
+        && validList(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (resource.data.ownerUid == request.auth.uid || joining() || leaving());
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+
+      // An invited user adds just their own uid.
+      function joining() {
+        return isInvited(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+          && request.resource.data.memberUids.toSet()
+            == resource.data.memberUids.toSet().union([request.auth.uid].toSet());
+      }
+
+      // A member removes just their own email and uid.
+      function leaving() {
+        return isInvited(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberEmails', 'memberUids', 'updatedAt'])
+          && request.resource.data.memberEmails.toSet()
+            == resource.data.memberEmails.toSet().difference([myEmail()].toSet())
+          && request.resource.data.memberUids.toSet()
+            == resource.data.memberUids.toSet().difference([request.auth.uid].toSet());
+      }
+
+      match /places/{placeId} {
+        function theList() {
+          return get(/databases/$(database)/documents/lists/$(listId)).data;
+        }
+
+        allow read, delete: if isMember(theList());
+        allow create: if isMember(theList()) && placeId.size() <= 64
+          && validListPlace(request.resource.data)
+          && request.resource.data.addedBy == request.auth.uid
+          && (!('visitedBy' in request.resource.data) || request.resource.data.visitedBy == request.auth.uid);
+        // Who added it (and when) stays; "visited by" can only become you, stay, or be cleared.
+        allow update: if isMember(theList())
+          && validListPlace(request.resource.data)
+          && request.resource.data.addedBy == resource.data.addedBy
+          && request.resource.data.addedByName == resource.data.addedByName
+          && request.resource.data.addedAt == resource.data.addedAt
+          && (!('visitedBy' in request.resource.data)
+            || request.resource.data.visitedBy == resource.data.get('visitedBy', null)
+            || request.resource.data.visitedBy == request.auth.uid);
+      }
     }
 
     // Everything else is closed.

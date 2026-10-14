@@ -11,6 +11,10 @@ interface Props {
   loadingDetails: boolean
   /** Set when the place is (or is linked to) a community place. */
   community?: CommunityInfo
+  /** Where saving goes ("My places" or a shared list); a picker shows when there's a choice. */
+  targets?: { id: string; label: string }[]
+  target?: string
+  onTarget?: (id: string) => void
   onSave: (status: PlaceStatus, name: string) => void
   onRemove: () => void
   onClose: () => void
@@ -30,7 +34,31 @@ function formatDate(ts: number) {
   return new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function PlaceSheet({ place, custom, loadingDetails, community, onSave, onRemove, onClose }: Props) {
+function statusText(p: Place) {
+  // Shared-list places say who did what.
+  if (p.addedByName) {
+    const by = p.addedByName
+    return p.status === 'visited'
+      ? `Visited by ${p.visitedByName ?? 'someone'}${p.visitedAt ? ` · ${formatDate(p.visitedAt)}` : ''} · added by ${by}`
+      : `On the wishlist since ${formatDate(p.addedAt)} · added by ${by}`
+  }
+  return p.status === 'visited' && p.visitedAt
+    ? `Visited · ${formatDate(p.visitedAt)}`
+    : `On your wishlist since ${formatDate(p.addedAt)}`
+}
+
+export default function PlaceSheet({
+  place,
+  custom,
+  loadingDetails,
+  community,
+  targets,
+  target,
+  onTarget,
+  onSave,
+  onRemove,
+  onClose,
+}: Props) {
   const saved = isSaved(place) ? place : null
   const [name, setName] = useState(place.name)
   const [renaming, setRenaming] = useState(false)
@@ -133,13 +161,20 @@ export default function PlaceSheet({ place, custom, loadingDetails, community, o
         </ul>
       )}
 
-      {saved && (
-        <p className="sheet-status">
-          {saved.status === 'visited' && saved.visitedAt
-            ? `Visited · ${formatDate(saved.visitedAt)}`
-            : `On your wishlist since ${formatDate(saved.addedAt)}`}
-        </p>
+      {targets && targets.length > 1 && (
+        <label className="sheet-target">
+          <span>Save to</span>
+          <select value={target} onChange={(e) => onTarget?.(e.target.value)}>
+            {targets.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
+
+      {saved && <p className="sheet-status">{statusText(saved)}</p>}
 
       <div className="sheet-actions">
         <button

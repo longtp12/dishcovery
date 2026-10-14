@@ -9,6 +9,8 @@ import {
   signOut,
 } from 'firebase/auth'
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   connectFirestoreEmulator,
   deleteDoc,
@@ -18,18 +20,23 @@ import {
   onSnapshot,
   persistentLocalCache,
   persistentMultipleTabManager,
+  query,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
+  type QuerySnapshot,
 } from 'firebase/firestore'
 import { firebaseConfig, useEmulators, type Cloud } from './cloud'
-import type { Place, SharedPlace } from './places'
+import type { Place, PlaceList, Scope, SharedPlace } from './places'
 
 /** Fields we store; anything else on the object is dropped (keeps the security rules simple). */
 const INFO_FIELDS = [
   'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
 ] as const
 const PLACE_FIELDS = [...INFO_FIELDS, 'sharedId', 'source', 'status', 'addedAt', 'visitedAt'] as const
+/** Shared-list places also record who added and who visited them. */
+const LIST_PLACE_FIELDS = [...PLACE_FIELDS, 'addedBy', 'addedByName', 'visitedBy', 'visitedByName', 'updatedBy'] as const
 const SHARED_FIELDS = [...INFO_FIELDS, 'addedBy', 'addedByName', 'createdAt'] as const
 
 function pick<T extends object>(obj: T, fields: readonly (keyof T)[]) {
@@ -41,7 +48,8 @@ function pick<T extends object>(obj: T, fields: readonly (keyof T)[]) {
   return out
 }
 
-const toDoc = (place: Place) => pick(place, PLACE_FIELDS)
+const toDoc = (scope: Scope, place: Place) => pick(place, scope === 'mine' ? PLACE_FIELDS : LIST_PLACE_FIELDS)
+const LIST_FIELDS = ['name', 'ownerUid', 'ownerName', 'memberEmails', 'memberUids', 'createdAt'] as const
 
 export function createCloud(): Cloud {
   const app = initializeApp(firebaseConfig)
@@ -57,8 +65,11 @@ export function createCloud(): Cloud {
     connectFirestoreEmulator(db, host, 8080)
   }
 
-  const placesCol = (uid: string) => collection(db, 'users', uid, 'places')
+  const placesCol = (uid: string, scope: Scope = 'mine') =>
+    scope === 'mine' ? collection(db, 'users', uid, 'places') : collection(db, 'lists', scope, 'places')
   const sharedCol = collection(db, 'sharedPlaces')
+  const listsCol = collection(db, 'lists')
+  const toList = (snap: QuerySnapshot) => snap.docs.map((d) => ({ ...(d.data() as Omit<PlaceList, 'id'>), id: d.id }))
 
   return {
     onUser(cb) {
@@ -86,9 +97,9 @@ export function createCloud(): Cloud {
 
     signOut: () => signOut(auth),
 
-    watchPlaces(uid, cb, onError) {
+    watchPlaces(uid, scope, cb, onError) {
       return onSnapshot(
-        placesCol(uid),
+        placesCol(uid, scope),
         { includeMetadataChanges: false },
         (snap) => {
           const places = snap.docs.map((d) => ({ ...(d.data() as Omit<Place, 'id'>), id: d.id }))
@@ -100,9 +111,9 @@ export function createCloud(): Cloud {
     },
 
     // Writes resolve once the server confirms; the local cache (and UI) updates immediately.
-    putPlace: (uid, place) => setDoc(doc(placesCol(uid), place.id), toDoc(place)),
+    putPlace: (uid, scope, place) => setDoc(doc(placesCol(uid, scope), place.id), toDoc(scope, place)),
 
-    deletePlace: (uid, id) => deleteDoc(doc(placesCol(uid), id)),
+    deletePlace: (uid, scope, id) => deleteDoc(doc(placesCol(uid, scope), id)),
 
     async migrate(uid, local) {
       if (!local.length) return 0
@@ -112,7 +123,7 @@ export function createCloud(): Cloud {
       const fresh = local.filter((p) => !ids.has(p.id) && !(p.osmId && osmIds.has(p.osmId)))
       for (let i = 0; i < fresh.length; i += 400) {
         const batch = writeBatch(db)
-        for (const p of fresh.slice(i, i + 400)) batch.set(doc(placesCol(uid), p.id), toDoc(p))
+        for (const p of fresh.slice(i, i + 400)) batch.set(doc(placesCol(uid), p.id), toDoc('mine', p))
         await batch.commit()
       }
       return fresh.length
@@ -131,5 +142,56 @@ export function createCloud(): Cloud {
     updateShared: (id, patch) => updateDoc(doc(sharedCol, id), { ...patch, updatedAt: Date.now() }),
 
     deleteShared: (id) => deleteDoc(doc(sharedCol, id)),
+
+    watchLists(user, cb, onError) {
+      // Lists you own, plus lists your email was invited to (usually the same ones for an owner).
+      let owned: PlaceList[] = []
+      let invited: PlaceList[] = []
+      const emit = () => {
+        const byId = new Map([...owned, ...invited].map((l) => [l.id, l]))
+        cb([...byId.values()].sort((a, b) => a.createdAt - b.createdAt))
+      }
+      const unsubs = [
+        onSnapshot(query(listsCol, where('ownerUid', '==', user.uid)), (s) => ((owned = toList(s)), emit()), onError),
+      ]
+      if (user.email) {
+        unsubs.push(
+          onSnapshot(
+            query(listsCol, where('memberEmails', 'array-contains', user.email.toLowerCase())),
+            (s) => ((invited = toList(s)), emit()),
+            onError,
+          ),
+        )
+      }
+      return () => unsubs.forEach((u) => u())
+    },
+
+    createList(list) {
+      const ref = doc(listsCol)
+      return { id: ref.id, done: setDoc(ref, pick(list, LIST_FIELDS)) }
+    },
+
+    updateList: (id, patch) => updateDoc(doc(listsCol, id), { ...patch, updatedAt: Date.now() }),
+
+    joinList: (id, uid) => updateDoc(doc(listsCol, id), { memberUids: arrayUnion(uid), updatedAt: Date.now() }),
+
+    leaveList: (id, uid, email) =>
+      updateDoc(doc(listsCol, id), {
+        memberEmails: arrayRemove(email.toLowerCase()),
+        memberUids: arrayRemove(uid),
+        updatedAt: Date.now(),
+      }),
+
+    async deleteList(id) {
+      const places = await getDocs(placesCol('', id))
+      const docs = places.docs.map((d) => d.ref)
+      // The list itself goes last, in the final batch, so members keep access until its places are gone.
+      for (let i = 0; i < docs.length || i === 0; i += 400) {
+        const batch = writeBatch(db)
+        for (const ref of docs.slice(i, i + 400)) batch.delete(ref)
+        if (i + 400 >= docs.length) batch.delete(doc(listsCol, id))
+        await batch.commit()
+      }
+    },
   }
 }

@@ -1,4 +1,4 @@
-import type { Place, SharedPlace } from './places'
+import type { Place, PlaceList, Scope, SharedPlace } from './places'
 
 /**
  * Optional cloud sync (Firebase Auth + Firestore, free Spark plan).
@@ -34,9 +34,10 @@ export interface Cloud {
   onUser(cb: (user: CloudUser | null) => void): () => void
   signIn(): Promise<void>
   signOut(): Promise<void>
-  watchPlaces(uid: string, cb: (places: Place[]) => void, onError: (err: Error) => void): () => void
-  putPlace(uid: string, place: Place): Promise<void>
-  deletePlace(uid: string, id: string): Promise<void>
+  /** Places in a scope: the user's own ('mine') or a shared list's. */
+  watchPlaces(uid: string, scope: Scope, cb: (places: Place[]) => void, onError: (err: Error) => void): () => void
+  putPlace(uid: string, scope: Scope, place: Place): Promise<void>
+  deletePlace(uid: string, scope: Scope, id: string): Promise<void>
   /** Copies places that aren't in the account yet (matched by id or OSM id). Returns how many were added. */
   migrate(uid: string, local: Place[]): Promise<number>
 
@@ -45,6 +46,16 @@ export interface Cloud {
   addShared(place: SharedPlace): Promise<void>
   updateShared(id: string, patch: { name: string }): Promise<void>
   deleteShared(id: string): Promise<void>
+
+  /** Shared lists the user owns or was invited to (by email). */
+  watchLists(user: CloudUser, cb: (lists: PlaceList[]) => void, onError: (err: Error) => void): () => void
+  /** Returns the new list's id straight away; the write syncs in the background. */
+  createList(list: Omit<PlaceList, 'id'>): { id: string; done: Promise<void> }
+  updateList(id: string, patch: Partial<Pick<PlaceList, 'name' | 'memberEmails'>>): Promise<void>
+  joinList(id: string, uid: string): Promise<void>
+  leaveList(id: string, uid: string, email: string): Promise<void>
+  /** Deletes the list and all its places (owner only). */
+  deleteList(id: string): Promise<void>
 }
 
 let cloud: Promise<Cloud> | null = null

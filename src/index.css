@@ -324,12 +324,24 @@ input:focus-visible {
   transform: scale(0.95);
 }
 
-.chips {
+.filter-row {
   display: flex;
   gap: 8px;
   max-width: 640px;
   width: 100%;
   margin: 0 auto;
+  pointer-events: none;
+}
+
+.filter-row > * {
+  pointer-events: auto;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   padding: 2px 4px 6px 0;
@@ -394,6 +406,208 @@ input:focus-visible {
   font-weight: var(--weight-strong);
   line-height: 20px;
   text-align: center;
+}
+
+/* ---------- List switcher ---------- */
+.list-switcher {
+  position: relative;
+  flex: none;
+}
+
+.list-chip {
+  max-width: 46vw;
+  font-weight: var(--weight-strong);
+}
+
+.list-chip.is-shared {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.list-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-menu {
+  left: 0;
+  right: auto;
+  z-index: 5;
+}
+
+.list-sub {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.list-menu-actions {
+  display: grid;
+  gap: 6px;
+  padding: 8px 2px 2px;
+  margin-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+/* ---------- List manager dialog ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 16px 18px 18px;
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 14px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field > span {
+  font-size: 12px;
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field input,
+.member-add input,
+.sheet-target select {
+  height: 42px;
+  padding: 0 12px;
+  border: var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  font-size: 16px; /* 16px keeps iOS from zooming in */
+  min-width: 0;
+}
+
+.member-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.member-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-size: 14.5px;
+}
+
+.member-email {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-tag {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.member-remove {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+}
+
+.member-add {
+  display: flex;
+  gap: 8px;
+}
+
+.member-add input {
+  flex: 1;
+}
+
+.member-add .account-btn {
+  padding: 0 16px;
+}
+
+.modal-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.modal-error {
+  margin: 0;
+  font-size: 13px;
+  color: #c0392b;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-actions .account-btn {
+  margin-left: auto;
+  padding: 0 22px;
+}
+
+.account-btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 0;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 500;
+  font-size: inherit;
+}
+
+.link-btn.danger {
+  color: #c0392b;
+  font-size: 14px;
 }
 
 /* ---------- Style switcher ---------- */
@@ -721,6 +935,22 @@ input:focus-visible {
   margin: 12px 0 0;
   font-size: 13px;
   color: var(--muted);
+}
+
+.sheet-target {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.sheet-target select {
+  flex: 1;
+  height: 38px;
+  color: var(--ink);
+  font-size: 16px;
 }
 
 .sheet-actions {

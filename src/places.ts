@@ -36,6 +36,41 @@ export interface SharedPlace extends PlaceInfo {
   createdAt: number
 }
 
+/** Your own places; any other scope is a shared list's id. */
+export const MINE = 'mine'
+export type Scope = string
+
+/** A list shared with other people by Google email; members see and edit its places together. */
+export interface PlaceList {
+  id: string
+  name: string
+  ownerUid: string
+  ownerName: string
+  /** Lowercase emails of everyone invited (the owner's included). */
+  memberEmails: string[]
+  /** Everyone who has opened it signed in. */
+  memberUids: string[]
+  createdAt: number
+}
+
+const SCOPE_KEY = 'dishcovery.scope.v1'
+
+export const normalizeEmails = (emails: string[]) => [
+  ...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean)),
+]
+
+const INFO_KEYS = [
+  'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId', 'sharedId',
+  'source',
+] as const
+
+/** Just the place details (no saved status or authorship), without empty fields. */
+export function infoOf(p: PlaceInfo): PlaceInfo {
+  const out: Record<string, unknown> = {}
+  for (const key of INFO_KEYS) if (p[key] !== undefined) out[key] = p[key]
+  return out as unknown as PlaceInfo
+}
+
 /** Places this close with the same name are treated as the same place. */
 const SAME_SPOT_METRES = 30
 
@@ -72,6 +107,12 @@ export interface Place extends PlaceInfo {
   status: PlaceStatus
   addedAt: number
   visitedAt?: number
+  /** Shared lists only: who added it, who marked it visited, who changed it last. */
+  addedBy?: string
+  addedByName?: string
+  visitedBy?: string
+  visitedByName?: string
+  updatedBy?: string
 }
 
 const STORAGE_KEY = 'dishcovery.places.v1'
@@ -123,6 +164,15 @@ export function usePlaces() {
   const [online, setOnline] = useState(() => navigator.onLine)
   const [message, setMessage] = useState<string | null>(null)
   const [community, setCommunity] = useState<SharedPlace[]>([])
+  const [lists, setLists] = useState<PlaceList[]>([])
+  const [listPlaces, setListPlaces] = useState<Record<string, Place[]>>({})
+  const [scope, setScope] = useState<Scope>(() => {
+    try {
+      return localStorage.getItem(SCOPE_KEY) || MINE
+    } catch {
+      return MINE
+    }
+  })
   const cloudRef = useRef<Cloud | null>(null)
 
   useEffect(() => write(localPlaces), [localPlaces])
@@ -183,7 +233,7 @@ export function usePlaces() {
         })
         .catch(() => setMessage('Couldn’t move this device’s places to your account yet. They’re still saved here.'))
     }
-    return c.watchPlaces(user.uid, setCloudPlaces, () =>
+    return c.watchPlaces(user.uid, MINE, setCloudPlaces, () =>
       setMessage('Couldn’t load your places from the cloud. Showing what’s saved offline.'),
     )
   }, [user])
@@ -242,60 +292,195 @@ export function usePlaces() {
     cloudRef.current?.deleteShared(id).catch(() => setMessage('Couldn’t remove that community place.'))
   }, [])
 
-  const places = useMemo(() => (user ? (cloudPlaces ?? []) : localPlaces), [user, cloudPlaces, localPlaces])
+  // Signed in: follow the shared lists you own or were invited to.
+  useEffect(() => {
+    const c = cloudRef.current
+    if (!user || !c) {
+      setLists([])
+      return
+    }
+    return c.watchLists(user, setLists, () => setMessage('Couldn’t load your shared lists.'))
+  }, [user])
+
+  // Invited to a list: record that you've joined (adds your uid to its members).
+  const joined = useRef(new Set<string>())
+  useEffect(() => {
+    const c = cloudRef.current
+    if (!user || !c) return
+    for (const l of lists) {
+      if (l.ownerUid === user.uid || l.memberUids.includes(user.uid) || joined.current.has(l.id)) continue
+      joined.current.add(l.id)
+      c.joinList(l.id, user.uid)
+        .then(() => setMessage(`You’ve joined “${l.name}”, shared by ${l.ownerName}`))
+        .catch(() => {})
+    }
+  }, [lists, user])
+
+  // Follow the places of every shared list (so "Save to…" knows what's already in each).
+  const listIds = lists.map((l) => l.id).join(',')
+  useEffect(() => {
+    const c = cloudRef.current
+    if (!user || !c || !listIds) {
+      setListPlaces({})
+      return
+    }
+    const ids = listIds.split(',')
+    setListPlaces((prev) => Object.fromEntries(ids.filter((id) => prev[id]).map((id) => [id, prev[id]])))
+    let stopped = false
+    const unsubs = new Map<string, () => void>()
+    const timers: ReturnType<typeof setTimeout>[] = []
+    // A just-created list may not have reached the server yet, which denies the first read: retry a few times.
+    const watch = (id: string, attempt = 0) => {
+      unsubs.set(
+        id,
+        c.watchPlaces(user.uid, id, (ps) => setListPlaces((prev) => ({ ...prev, [id]: ps })), () => {
+          if (stopped || attempt >= 5) return
+          timers.push(setTimeout(() => !stopped && watch(id, attempt + 1), 1000 * 2 ** attempt))
+        }),
+      )
+    }
+    ids.forEach((id) => watch(id))
+    return () => {
+      stopped = true
+      timers.forEach(clearTimeout)
+      unsubs.forEach((u) => u())
+    }
+  }, [listIds, user])
+
+  const minePlaces = useMemo(() => (user ? (cloudPlaces ?? []) : localPlaces), [user, cloudPlaces, localPlaces])
+  const placesIn = useCallback(
+    (s: Scope): Place[] => (s === MINE ? minePlaces : (listPlaces[s] ?? [])),
+    [minePlaces, listPlaces],
+  )
+  // A remembered list you no longer have (or while signed out) falls back to your own places.
+  const activeScope: Scope = user && lists.some((l) => l.id === scope) ? scope : MINE
+  const places = placesIn(activeScope)
   const syncState: SyncState = !user ? 'local' : cloudPlaces === null ? 'connecting' : online ? 'synced' : 'offline'
 
+  const setActiveScope = useCallback((s: Scope) => {
+    setScope(s)
+    try {
+      localStorage.setItem(SCOPE_KEY, s)
+    } catch {
+      // not remembered; fine
+    }
+  }, [])
+
   const persist = useCallback(
-    (next: Place) => {
+    (s: Scope, next: Place) => {
       requestPersistentStorage()
       const c = cloudRef.current
       if (user && c) {
-        c.putPlace(user.uid, next).catch(() => setMessage(`Couldn’t save ${next.name} to your account.`))
-      } else {
+        c.putPlace(user.uid, s, next).catch(() =>
+          setMessage(`Couldn’t save ${next.name} ${s === MINE ? 'to your account' : 'to the shared list'}.`),
+        )
+      } else if (s === MINE) {
         setLocalPlaces((prev) => [next, ...prev.filter((p) => p.id !== next.id)])
       }
     },
     [user],
   )
 
-  /** Save (or re-file) a place with a status. Returns the saved place's id. */
+  /** Shared-list places record who added and who visited them. */
+  const stamp = useCallback(
+    (s: Scope, next: Place, prev?: Place): Place => {
+      if (s === MINE || !user) return next
+      const me = displayName(user)
+      const keepVisitor = prev?.status === 'visited' && prev.visitedBy
+      return {
+        ...next,
+        addedBy: prev?.addedBy ?? user.uid,
+        addedByName: prev?.addedByName ?? me,
+        updatedBy: user.uid,
+        visitedBy: next.status === 'visited' ? (keepVisitor ? prev.visitedBy : user.uid) : undefined,
+        visitedByName: next.status === 'visited' ? (keepVisitor ? prev.visitedByName : me) : undefined,
+      }
+    },
+    [user],
+  )
+
+  /** Save (or re-file) a place with a status in your places or a shared list. Returns the saved place. */
   const save = useCallback(
-    (info: PlaceInfo, status: PlaceStatus, existingId?: string): string => {
+    (s: Scope, place: PlaceInfo, status: PlaceStatus, existingId?: string): Place => {
       const now = Date.now()
-      const match = places.find(
-        (p) => p.id === existingId || (info.osmId !== undefined && p.osmId === info.osmId),
-      )
+      const info = infoOf(place)
+      const inScope = placesIn(s)
+      const match = existingId
+        ? inScope.find((p) => p.id === existingId)
+        : inScope.find((p) => samePlace(info, p) || (info.sharedId !== undefined && p.sharedId === info.sharedId))
       const sharedId = share(match ? { ...info, sharedId: info.sharedId ?? match.sharedId } : info)
       if (match) {
         const visitedAt = status === 'visited' ? (match.visitedAt ?? now) : undefined
-        persist({ ...match, ...info, id: match.id, source: match.source, sharedId, status, visitedAt })
-        return match.id
+        const next = stamp(s, { ...match, ...info, id: match.id, source: match.source, sharedId, status, visitedAt }, match)
+        persist(s, next)
+        return next
       }
-      const id = newId()
-      persist({ ...info, id, sharedId, status, addedAt: now, visitedAt: status === 'visited' ? now : undefined })
-      return id
+      const next = stamp(s, { ...info, id: newId(), sharedId, status, addedAt: now, visitedAt: status === 'visited' ? now : undefined })
+      persist(s, next)
+      return next
     },
-    [places, persist, share],
+    [placesIn, persist, share, stamp],
   )
 
   const update = useCallback(
-    (id: string, patch: Partial<PlaceInfo>) => {
-      const current = places.find((p) => p.id === id)
-      if (current) persist({ ...current, ...patch })
+    (s: Scope, id: string, patch: Partial<PlaceInfo>) => {
+      const current = placesIn(s).find((p) => p.id === id)
+      if (current) persist(s, stamp(s, { ...current, ...patch }, current))
     },
-    [places, persist],
+    [placesIn, persist, stamp],
   )
 
   const remove = useCallback(
-    (id: string) => {
+    (s: Scope, id: string) => {
       const c = cloudRef.current
       if (user && c) {
-        c.deletePlace(user.uid, id).catch(() => setMessage('Couldn’t remove that place from your account.'))
-      } else {
+        c.deletePlace(user.uid, s, id).catch(() => setMessage('Couldn’t remove that place.'))
+      } else if (s === MINE) {
         setLocalPlaces((prev) => prev.filter((p) => p.id !== id))
       }
     },
     [user],
+  )
+
+  /** Creates a shared list (and switches to it). */
+  const createList = useCallback(
+    (name: string, emails: string[]) => {
+      const c = cloudRef.current
+      if (!user || !c) return
+      const { id, done } = c.createList({
+        name,
+        ownerUid: user.uid,
+        ownerName: displayName(user),
+        memberEmails: normalizeEmails([...(user.email ? [user.email] : []), ...emails]),
+        memberUids: [user.uid],
+        createdAt: Date.now(),
+      })
+      done.catch(() => setMessage(`Couldn’t create “${name}”.`))
+      setActiveScope(id)
+    },
+    [user, setActiveScope],
+  )
+
+  const updateList = useCallback((id: string, patch: { name?: string; memberEmails?: string[] }) => {
+    const p = patch.memberEmails ? { ...patch, memberEmails: normalizeEmails(patch.memberEmails) } : patch
+    cloudRef.current?.updateList(id, p).catch(() => setMessage('Couldn’t update that list.'))
+  }, [])
+
+  const leaveList = useCallback(
+    (id: string) => {
+      if (!user?.email) return
+      cloudRef.current?.leaveList(id, user.uid, user.email).catch(() => setMessage('Couldn’t leave that list.'))
+      if (scope === id) setActiveScope(MINE)
+    },
+    [user, scope, setActiveScope],
+  )
+
+  const deleteList = useCallback(
+    (id: string) => {
+      cloudRef.current?.deleteList(id).catch(() => setMessage('Couldn’t delete that list.'))
+      if (scope === id) setActiveScope(MINE)
+    },
+    [scope, setActiveScope],
   )
 
   const signIn = useCallback(async () => {
@@ -314,7 +499,16 @@ export function usePlaces() {
   const clearMessage = useCallback(() => setMessage(null), [])
 
   return {
+    /** Places in the active scope (your own places or the selected shared list). */
     places,
+    placesIn,
+    scope: activeScope,
+    setScope: setActiveScope,
+    lists,
+    createList,
+    updateList,
+    leaveList,
+    deleteList,
     save,
     update,
     remove,

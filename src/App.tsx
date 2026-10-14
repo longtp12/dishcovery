@@ -5,11 +5,24 @@ import MapView, { type FocusRequest } from './components/MapView'
 import PlaceSheet from './components/PlaceSheet'
 import SearchBox from './components/SearchBox'
 import AppMenu from './components/AppMenu'
+import ListManager from './components/ListManager'
+import ListSwitcher from './components/ListSwitcher'
 import { BookmarkIcon, ImportIcon, LocateIcon, MapIcon } from './components/Icons'
 import { googlePlaceInfo, matchGooglePlace, resolveGoogleLink, type GoogleLink } from './gmaps'
 import { searchLoadedFood } from './mapFeatures'
 import { lookupPlace, reverseGeocode } from './osm'
-import { isSharedCopy, samePlace, usePlaces, type Place, type PlaceInfo, type PlaceStatus, type SharedPlace } from './places'
+import {
+  MINE,
+  infoOf,
+  isSharedCopy,
+  samePlace,
+  usePlaces,
+  type Place,
+  type PlaceInfo,
+  type PlaceStatus,
+  type Scope,
+  type SharedPlace,
+} from './places'
 import { THEMES, loadTheme, saveTheme, type ThemeId } from './themes'
 
 type Filter = 'all' | 'wishlist' | 'visited'
@@ -39,7 +52,28 @@ export default function App() {
   const mapRef = useRef<LeafletMap | null>(null)
   const glRef = useRef<GLMap | null>(null)
   const detailsAbort = useRef<AbortController | null>(null)
-  const { places, save, update, remove, community, renameShared, removeShared, cloud, message, clearMessage } = usePlaces()
+  const {
+    places,
+    placesIn,
+    scope,
+    setScope,
+    lists,
+    createList,
+    updateList,
+    leaveList,
+    deleteList,
+    save,
+    update,
+    remove,
+    community,
+    renameShared,
+    removeShared,
+    cloud,
+    message,
+    clearMessage,
+  } = usePlaces()
+  /** The list manager dialog: 'new', a list id, or closed. */
+  const [managing, setManaging] = useState<string | null>(null)
   const theme = THEMES[themeId]
 
   useEffect(() => {
@@ -171,33 +205,53 @@ export default function App() {
     setSelection(null)
   }, [])
 
+  const listLabel = (s: Scope) => (s === MINE ? 'My places' : (lists.find((l) => l.id === s)?.name ?? 'Shared list'))
+
+  // Where the card saves to: the list on screen unless you pick another one ("Save to…").
+  const [target, setTarget] = useState<Scope>(scope)
+  const selKey =
+    selection?.type === 'candidate' ? `c:${selection.info.lat},${selection.info.lng}` : `${selection?.type}:${selection?.id}`
+  useEffect(() => setTarget(scope), [selKey, scope])
+
+  const sheetInfo: PlaceInfo | null = selectedPlace ?? candidate ?? (selectedShared ? sharedInfo(selectedShared) : null)
+  // The place as saved in the target, if it's there.
+  const targetSaved: Place | undefined =
+    !sheetInfo
+      ? undefined
+      : target === scope && selectedPlace
+        ? selectedPlace
+        : placesIn(target).find(
+            (p) => samePlace(sheetInfo, p) || (sheetInfo.sharedId !== undefined && p.sharedId === sheetInfo.sharedId),
+          )
+
   const handleSave = (status: PlaceStatus, name: string) => {
-    if (selection?.type === 'saved' && selectedPlace) {
-      save(selectedPlace, status, selectedPlace.id)
-      setNotice(status === 'visited' ? `Marked ${selectedPlace.name} as visited` : `Moved ${selectedPlace.name} to your wishlist`)
+    if (!sheetInfo) return
+    const info = { ...infoOf(sheetInfo), name: name || sheetInfo.name }
+    const inList = target === MINE ? '' : ` in “${listLabel(target)}”`
+    if (targetSaved) {
+      save(target, info, status, targetSaved.id)
+      setNotice(status === 'visited' ? `Marked ${info.name} as visited${inList}` : `Moved ${info.name} to the wishlist${inList}`)
       return
     }
-    const fromCommunity = selection?.type === 'community' && selectedShared ? sharedInfo(selectedShared) : null
-    if (selection?.type === 'candidate' || fromCommunity) {
-      const base = fromCommunity ?? (selection as Extract<Selection, { type: 'candidate' }>).info
-      const info = { ...base, name: name || base.name }
-      const id = save(info, status)
-      const now = Date.now()
-      setSelection({ type: 'saved', id, pending: { ...info, id, status, addedAt: now, visitedAt: status === 'visited' ? now : undefined } })
-      const saved = status === 'visited' ? `Saved ${info.name} as visited` : `Added ${info.name} to your wishlist`
-      setNotice(cloud.enabled && !cloud.user ? `${saved} on this device. Sign in from the menu ↗ to keep it in your account.` : saved)
+    const saved = save(target, info, status)
+    if (target === scope) {
+      setSelection({ type: 'saved', id: saved.id, pending: saved })
       if (filter !== 'all' && filter !== status) setFilter('all')
     }
+    const done = status === 'visited' ? `Saved ${info.name} as visited` : `Added ${info.name} to ${inList ? 'the' : 'your'} wishlist`
+    setNotice(
+      target === MINE && cloud.enabled && !cloud.user
+        ? `${done} on this device. Sign in from the menu ↗ to keep it in your account.`
+        : done + inList,
+    )
   }
 
   const handleRemove = () => {
-    if (!selectedPlace) return
-    remove(selectedPlace.id)
-    setNotice(`Removed ${selectedPlace.name}`)
+    if (!targetSaved) return
+    remove(target, targetSaved.id)
+    setNotice(`Removed ${targetSaved.name}${target === MINE ? '' : ` from “${listLabel(target)}”`}`)
     // Keep it on screen as an unsaved place so a mis-tap is easy to undo.
-    const { name, lat, lng, osmId, kind, cuisine, address, openingHours, googleUrl, source } = selectedPlace
-    const info: PlaceInfo = { name, lat, lng, osmId, kind, cuisine, address, openingHours, googleUrl, source }
-    setSelection({ type: 'candidate', info, custom: false })
+    if (target === scope && selectedPlace) setSelection({ type: 'candidate', info: infoOf(selectedPlace), custom: false })
   }
 
   // Saved places from search/map get details filled in lazily if they were saved before details loaded.
@@ -205,10 +259,10 @@ export default function App() {
     if (!selectedPlace?.osmId || selectedPlace.cuisine || selectedPlace.address) return
     const ctrl = new AbortController()
     lookupPlace(selectedPlace.osmId, ctrl.signal)
-      .then((d) => d && update(selectedPlace.id, { cuisine: d.cuisine, address: d.address, openingHours: d.openingHours }))
+      .then((d) => d && update(scope, selectedPlace.id, { cuisine: d.cuisine, address: d.address, openingHours: d.openingHours }))
       .catch(() => {})
     return () => ctrl.abort()
-  }, [selectedPlace, update])
+  }, [selectedPlace, update, scope])
 
   const getView = useCallback(() => {
     const b = mapRef.current?.getBounds()
@@ -282,7 +336,8 @@ export default function App() {
     }
   }
 
-  const sheetPlace = selectedPlace ?? candidate ?? (selectedShared ? sharedInfo(selectedShared) : null)
+  const sheetPlace = targetSaved ?? (sheetInfo && (sheetInfo === candidate ? candidate : infoOf(sheetInfo)))
+  const managedList = managing && managing !== 'new' ? lists.find((l) => l.id === managing) : undefined
 
   return (
     <div className="app">
@@ -329,20 +384,35 @@ export default function App() {
             />
             <AppMenu theme={themeId} onTheme={setThemeId} cloud={cloud} placeCount={places.length} />
           </div>
-          <div className="chips" role="tablist" aria-label="Filter places">
-            {(['all', 'wishlist', 'visited'] as const).map((f) => (
-              <button
-                key={f}
-                role="tab"
-                aria-selected={filter === f}
-                className={`chip chip-${f}`}
-                onClick={() => setFilter(f)}
-              >
-                {f !== 'all' && <span className="dot" aria-hidden />}
-                {{ all: 'All', wishlist: 'Wishlist', visited: 'Visited' }[f]}
-                {f !== 'all' && counts[f] > 0 && <span className="chip-count">{counts[f]}</span>}
-              </button>
-            ))}
+          <div className="filter-row">
+            {cloud.user && (
+              <ListSwitcher
+                lists={lists}
+                scope={scope}
+                uid={cloud.user.uid}
+                onScope={(s) => {
+                  setScope(s)
+                  closeSheet()
+                }}
+                onNew={() => setManaging('new')}
+                onManage={setManaging}
+              />
+            )}
+            <div className="chips" role="tablist" aria-label="Filter places">
+              {(['all', 'wishlist', 'visited'] as const).map((f) => (
+                <button
+                  key={f}
+                  role="tab"
+                  aria-selected={filter === f}
+                  className={`chip chip-${f}`}
+                  onClick={() => setFilter(f)}
+                >
+                  {f !== 'all' && <span className="dot" aria-hidden />}
+                  {{ all: 'All', wishlist: 'Wishlist', visited: 'Visited' }[f]}
+                  {f !== 'all' && counts[f] > 0 && <span className="chip-count">{counts[f]}</span>}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -358,7 +428,9 @@ export default function App() {
 
         {!sheetPlace && places.length === 0 && !notice && (
           <div className="hint" role="note">
-            Tap a restaurant dot to save it, or long-press anywhere to add your own spot.
+            {scope === MINE
+              ? 'Tap a restaurant dot to save it, or long-press anywhere to add your own spot.'
+              : `Nothing in “${listLabel(scope)}” yet. Tap a restaurant dot to add it for everyone in the list.`}
           </div>
         )}
 
@@ -379,9 +451,33 @@ export default function App() {
                 },
               }
             }
+            targets={cloud.user && lists.length ? [MINE, ...lists.map((l) => l.id)].map((id) => ({ id, label: listLabel(id) })) : undefined}
+            target={target}
+            onTarget={setTarget}
             onSave={handleSave}
             onRemove={handleRemove}
             onClose={closeSheet}
+          />
+        )}
+
+        {managing && cloud.user && (managing === 'new' || managedList) && (
+          <ListManager
+            list={managedList ?? null}
+            user={cloud.user}
+            onCreate={(name, emails) => {
+              createList(name, emails)
+              setNotice(`Created “${name}”. Places you save now go to this list.`)
+            }}
+            onSave={updateList}
+            onLeave={(id) => {
+              leaveList(id)
+              setNotice(`Left “${listLabel(id)}”`)
+            }}
+            onDelete={(id) => {
+              deleteList(id)
+              setNotice(`Deleted “${listLabel(id)}”`)
+            }}
+            onClose={() => setManaging(null)}
           />
         )}
 
