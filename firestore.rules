@@ -1,0 +1,42 @@
+rules_version = '2';
+
+// Each signed-in user can only read and write their own places: users/{uid}/places/{placeId}.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function validPlace(d) {
+      return d.keys().hasOnly([
+          'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl',
+          'source', 'status', 'addedAt', 'visitedAt', 'updatedAt'
+        ])
+        && d.keys().hasAll(['name', 'lat', 'lng', 'status', 'source', 'addedAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 200
+        && d.lat is number && d.lat >= -90 && d.lat <= 90
+        && d.lng is number && d.lng >= -180 && d.lng <= 180
+        && d.status in ['wishlist', 'visited']
+        && d.source in ['map', 'search', 'custom', 'google']
+        && d.addedAt is number
+        && (!('visitedAt' in d) || d.visitedAt is number)
+        && (!('updatedAt' in d) || d.updatedAt is number)
+        && (!('osmId' in d) || (d.osmId is string && d.osmId.size() <= 40))
+        && (!('kind' in d) || (d.kind is string && d.kind.size() <= 80))
+        && (!('cuisine' in d) || (d.cuisine is string && d.cuisine.size() <= 200))
+        && (!('address' in d) || (d.address is string && d.address.size() <= 300))
+        && (!('openingHours' in d) || (d.openingHours is string && d.openingHours.size() <= 300))
+        && (!('googleUrl' in d) || (d.googleUrl is string && d.googleUrl.size() <= 2000));
+    }
+
+    match /users/{uid}/places/{placeId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && placeId.size() <= 64 && validPlace(request.resource.data);
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

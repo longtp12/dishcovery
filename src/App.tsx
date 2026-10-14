@@ -4,7 +4,7 @@ import type { Map as GLMap } from 'maplibre-gl'
 import MapView, { type FocusRequest } from './components/MapView'
 import PlaceSheet from './components/PlaceSheet'
 import SearchBox from './components/SearchBox'
-import StyleSwitcher from './components/StyleSwitcher'
+import AppMenu from './components/AppMenu'
 import { BookmarkIcon, ImportIcon, LocateIcon, MapIcon } from './components/Icons'
 import { googlePlaceInfo, matchGooglePlace, resolveGoogleLink, type GoogleLink } from './gmaps'
 import { searchLoadedFood } from './mapFeatures'
@@ -31,7 +31,7 @@ export default function App() {
   const mapRef = useRef<LeafletMap | null>(null)
   const glRef = useRef<GLMap | null>(null)
   const detailsAbort = useRef<AbortController | null>(null)
-  const { places, save, update, remove } = usePlaces()
+  const { places, save, update, remove, cloud, message, clearMessage } = usePlaces()
   const theme = THEMES[themeId]
 
   useEffect(() => {
@@ -67,6 +67,13 @@ export default function App() {
   }, [])
 
   useEffect(() => locate(true), [locate])
+
+  // Messages from the places store (sync, migration, errors) show as toasts.
+  useEffect(() => {
+    if (!message) return
+    setNotice(message)
+    clearMessage()
+  }, [message, clearMessage])
 
   useEffect(() => {
     if (!notice) return
@@ -144,7 +151,8 @@ export default function App() {
       const info = { ...selection.info, name: name || selection.info.name }
       const id = save(info, status)
       setSelection({ type: 'saved', id })
-      setNotice(status === 'visited' ? `Saved ${info.name} as visited` : `Added ${info.name} to your wishlist`)
+      const saved = status === 'visited' ? `Saved ${info.name} as visited` : `Added ${info.name} to your wishlist`
+      setNotice(cloud.enabled && !cloud.user ? `${saved} on this device. Sign in from the menu ↗ to keep it in your account.` : saved)
       if (filter !== 'all' && filter !== status) setFilter('all')
     }
   }
@@ -283,7 +291,7 @@ export default function App() {
               }}
               onGoogleLink={openGoogleLink}
             />
-            <StyleSwitcher value={themeId} onChange={setThemeId} />
+            <AppMenu theme={themeId} onTheme={setThemeId} cloud={cloud} placeCount={places.length} />
           </div>
           <div className="chips" role="tablist" aria-label="Filter places">
             {(['all', 'wishlist', 'visited'] as const).map((f) => (

@@ -27,3 +27,8 @@ dist-ssr
 worker/.dev.vars
 worker/.wrangler
 worker/node_modules
+
+# Firebase emulator / CLI
+firebase-debug.log
+firestore-debug.log
+.firebase/

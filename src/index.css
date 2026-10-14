@@ -413,6 +413,130 @@ input:focus-visible {
   box-shadow: var(--shadow);
 }
 
+.menu-btn {
+  position: relative;
+}
+
+.menu-btn.has-avatar {
+  padding: 0;
+}
+
+.menu-dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--wishlist);
+  border: 2px solid var(--surface);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-initial {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--weight-strong);
+}
+
+.switcher-menu {
+  min-width: 260px;
+  max-width: calc(100vw - 32px);
+}
+
+.account {
+  padding: 8px 8px 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  display: grid;
+  gap: 10px;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-text {
+  min-width: 0;
+}
+
+.account-name {
+  font-weight: var(--weight-strong);
+  font-size: 15px;
+}
+
+.account-email {
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-pitch {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.account-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 42px;
+  border-radius: calc(var(--radius) - 4px);
+  font-size: 14.5px;
+  font-weight: var(--weight-strong);
+}
+
+.account-btn.google {
+  background: #fff;
+  color: #1f1f1f;
+  border: 1px solid #dadce0;
+}
+
+.account-btn.secondary {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border: var(--border);
+}
+
+.account-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+[data-theme='pop'] .account-btn {
+  border: 2px solid #111;
+  box-shadow: 2px 2px 0 #111;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.sync-synced {
+  color: var(--visited);
+}
+
+.sync-offline {
+  color: var(--wishlist);
+}
+
 .switcher-title {
   padding: 6px 10px 8px;
   font-size: 12px;

@@ -93,3 +93,16 @@ export const ClockIcon = ({ size = 16 }: IconProps) => (
     <path d="M12 7v5l3 2" />
   </svg>
 )
+
+export const UserIcon = ({ size = 20 }: IconProps) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+  </svg>
+)
+
+export const CloudIcon = ({ size = 16 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18Z" />
+  </svg>
+)
