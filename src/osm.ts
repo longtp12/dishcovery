@@ -72,6 +72,8 @@ export async function searchPlaces(
   query: string,
   view: { west: number; south: number; east: number; north: number },
   signal?: AbortSignal,
+  /** Only return results inside `view`. */
+  bounded = false,
 ): Promise<SearchResult[]> {
   const results = await nominatim<NominatimResult[]>(
     'search',
@@ -81,6 +83,7 @@ export async function searchPlaces(
       addressdetails: '1',
       extratags: '1',
       viewbox: [view.west, view.north, view.east, view.south].join(','),
+      ...(bounded ? { bounded: '1' } : {}),
     },
     signal,
   )
@@ -111,7 +114,8 @@ export async function reverseGeocode(lat: number, lng: number, signal?: AbortSig
 }
 
 /** Google Maps link (no API key needed): searches by name + address, or exact coordinates. */
-export function googleMapsUrl(p: Pick<PlaceInfo, 'name' | 'lat' | 'lng' | 'address'>) {
+export function googleMapsUrl(p: Pick<PlaceInfo, 'name' | 'lat' | 'lng' | 'address' | 'googleUrl'>) {
+  if (p.googleUrl) return p.googleUrl
   const query = p.name && p.address ? `${p.name}, ${p.address}` : `${p.lat},${p.lng}`
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
 }

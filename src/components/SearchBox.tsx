@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { canExpandShortLinks, parseGoogleMapsLink, type GoogleLink } from '../gmaps'
 import { searchPlaces, type SearchResult } from '../osm'
 import type { Place, PlaceInfo } from '../places'
 import { fold } from '../text'
@@ -13,9 +14,15 @@ interface Props {
   searchNearby: (query: string) => PlaceInfo[]
   onPickSaved: (id: string) => void
   onPickResult: (result: PlaceInfo) => void
+  /** A pasted Google Maps link that we can turn into a place. */
+  onGoogleLink: (link: GoogleLink) => void
 }
 
-export default function SearchBox({ places, getView, searchNearby, onPickSaved, onPickResult }: Props) {
+/** Whether we can do something with the link (short links need the expander or a name from the shared text). */
+const usable = (link: GoogleLink | null): boolean =>
+  !!link && (link.kind === 'full' || canExpandShortLinks || !!link.name)
+
+export default function SearchBox({ places, getView, searchNearby, onPickSaved, onPickResult, onGoogleLink }: Props) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<SearchResult[] | null>(null)
@@ -27,19 +34,20 @@ export default function SearchBox({ places, getView, searchNearby, onPickSaved, 
   const abortRef = useRef<AbortController | null>(null)
 
   const q = query.trim()
+  const link = useMemo(() => parseGoogleMapsLink(query), [query])
   const savedMatches = useMemo(() => {
-    if (!q) return []
+    if (!q || link) return []
     const needle = fold(q)
     return places
       .filter((p) => fold([p.name, p.cuisine, p.address].filter(Boolean).join(' ')).includes(needle))
       .slice(0, 5)
-  }, [places, q])
+  }, [places, q, link])
 
   const nearby = useMemo(() => {
-    if (!q || !open) return []
+    if (!q || !open || link) return []
     const savedOsm = new Set(places.map((p) => p.osmId).filter(Boolean))
     return searchNearby(q).filter((p) => !p.osmId || !savedOsm.has(p.osmId))
-  }, [q, open, places, searchNearby])
+  }, [q, open, link, places, searchNearby])
 
   useEffect(() => {
     if (!open) return
@@ -52,8 +60,19 @@ export default function SearchBox({ places, getView, searchNearby, onPickSaved, 
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
+  function applyLink(l: GoogleLink) {
+    onGoogleLink(l)
+    setQuery('')
+    setResults(null)
+    done()
+  }
+
   async function runSearch() {
     if (!q) return
+    if (link) {
+      if (usable(link)) applyLink(link)
+      return
+    }
     const view = getView()
     if (!view) return
     abortRef.current?.abort()
@@ -114,6 +133,14 @@ export default function SearchBox({ places, getView, searchNearby, onPickSaved, 
             setOpen(true)
           }}
           onFocus={() => setOpen(true)}
+          onPaste={(e) => {
+            // Pasting a Google Maps link goes straight to the place.
+            const pasted = parseGoogleMapsLink(e.clipboardData.getData('text'))
+            if (pasted && usable(pasted)) {
+              e.preventDefault()
+              applyLink(pasted)
+            }
+          }}
           onKeyDown={(e) => e.key === 'Escape' && done()}
         />
         {query && (
@@ -123,7 +150,37 @@ export default function SearchBox({ places, getView, searchNearby, onPickSaved, 
         )}
       </form>
 
-      {showPanel && (
+      {showPanel && link && (
+        <div className="search-panel" aria-label="Google Maps link">
+          <div className="search-section">Google Maps link</div>
+          {usable(link) ? (
+            <button className="search-item" onClick={() => applyLink(link)}>
+              <span className="search-badge badge-google">
+                <PinIcon size={14} />
+              </span>
+              <span className="search-text">
+                <span className="search-name">{link.name || (link.kind === 'short' ? 'Shared place' : 'Dropped pin')}</span>
+                <span className="search-sub">
+                  {link.kind === 'full' && link.lat !== undefined && link.lng !== undefined
+                    ? `${link.lat.toFixed(5)}, ${link.lng.toFixed(5)} · Tap to add`
+                    : 'Find it on the map · Tap to add'}
+                </span>
+              </span>
+            </button>
+          ) : (
+            <div className="search-note">
+              Short share links can’t be opened from here.{' '}
+              <a href={link.url} target="_blank" rel="noreferrer">
+                Open the link
+              </a>
+              , then copy the full address from your browser’s address bar and paste it here. Or paste the whole
+              text from Google Maps’ Share button (it includes the place name).
+            </div>
+          )}
+        </div>
+      )}
+
+      {showPanel && !link && (
         <div className="search-panel" role="listbox" aria-label="Search results">
           {savedMatches.length > 0 && (
             <>

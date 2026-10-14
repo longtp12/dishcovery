@@ -262,6 +262,16 @@ input:focus-visible {
   color: var(--ink);
 }
 
+.badge-google {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--accent);
+}
+
+.search-note a {
+  color: var(--accent);
+  font-weight: 500;
+}
+
 .badge-place {
   background: color-mix(in srgb, var(--ink) 8%, var(--surface));
   color: var(--muted);

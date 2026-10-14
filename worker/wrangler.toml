@@ -1,0 +1,11 @@
+name = "dishcovery-link-expander"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+
+# Request logs are off: the worker never records the links people paste.
+[observability]
+enabled = false
+
+[vars]
+# Comma-separated list of sites allowed to call the expander (scheme + host + port, no path).
+ALLOWED_ORIGINS = "https://longtp12.github.io,http://localhost:5173"

@@ -22,13 +22,13 @@ function formatDate(ts: number) {
 
 export default function PlaceSheet({ place, custom, loadingDetails, onSave, onRemove, onClose }: Props) {
   const saved = isSaved(place) ? place : null
-  const [name, setName] = useState(custom ? '' : place.name)
+  const [name, setName] = useState(place.name)
   const inputRef = useRef<HTMLInputElement>(null)
   const placeKey = saved?.id ?? `${place.lat},${place.lng}`
 
   useEffect(() => {
-    setName(custom ? '' : place.name)
-    if (custom) setTimeout(() => inputRef.current?.focus(), 250)
+    setName(place.name)
+    if (custom && !place.name) setTimeout(() => inputRef.current?.focus(), 250)
     // Reset only when a different place is shown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeKey, custom])

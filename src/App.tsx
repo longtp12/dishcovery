@@ -6,6 +6,7 @@ import PlaceSheet from './components/PlaceSheet'
 import SearchBox from './components/SearchBox'
 import StyleSwitcher from './components/StyleSwitcher'
 import { BookmarkIcon, ImportIcon, LocateIcon, MapIcon } from './components/Icons'
+import { googlePlaceInfo, matchGooglePlace, resolveGoogleLink, type GoogleLink } from './gmaps'
 import { searchLoadedFood } from './mapFeatures'
 import { lookupPlace, reverseGeocode } from './osm'
 import { usePlaces, type PlaceInfo, type PlaceStatus } from './places'
@@ -153,8 +154,8 @@ export default function App() {
     remove(selectedPlace.id)
     setNotice(`Removed ${selectedPlace.name}`)
     // Keep it on screen as an unsaved place so a mis-tap is easy to undo.
-    const { name, lat, lng, osmId, kind, cuisine, address, openingHours, source } = selectedPlace
-    const info: PlaceInfo = { name, lat, lng, osmId, kind, cuisine, address, openingHours, source }
+    const { name, lat, lng, osmId, kind, cuisine, address, openingHours, googleUrl, source } = selectedPlace
+    const info: PlaceInfo = { name, lat, lng, osmId, kind, cuisine, address, openingHours, googleUrl, source }
     setSelection({ type: 'candidate', info, custom: false })
   }
 
@@ -188,6 +189,57 @@ export default function App() {
   )
 
   const flyTo = (lat: number, lng: number) => setFocus({ lat, lng, zoom: 17, key: Date.now() })
+
+  const linkAbort = useRef<AbortController | null>(null)
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
+
+  /** Paste a Google Maps link -> pin on the map + save card, matched to OSM when possible. */
+  const openGoogleLink = async (pasted: GoogleLink) => {
+    linkAbort.current?.abort()
+    const ctrl = new AbortController()
+    linkAbort.current = ctrl
+    const view = getView() ?? { west: 105.78, south: 20.98, east: 105.9, north: 21.07 } // Hanoi
+    try {
+      if (pasted.kind === 'short') setNotice('Opening Google Maps link…')
+      const link = await resolveGoogleLink(pasted, ctrl.signal)
+      if (ctrl.signal.aborted) return
+      const pin = link.kind === 'full' ? googlePlaceInfo(link) : null
+
+      if (pin) {
+        // Show the pin straight away; upgrade to the OpenStreetMap place if we find it.
+        setNotice(null)
+        showCandidate(pin, true)
+        flyTo(pin.lat, pin.lng)
+        if (!pin.name) return
+        const match = await matchGooglePlace(pin.name, pin, view, ctrl.signal)
+        const sel = selectionRef.current
+        const stillShowing = sel?.type === 'candidate' && sel.info.googleUrl === pin.googleUrl
+        if (match && stillShowing && !ctrl.signal.aborted) {
+          showCandidate({ ...match, name: pin.name, source: 'google', googleUrl: pin.googleUrl })
+        }
+        return
+      }
+
+      const name = link.name
+      if (!name) {
+        setNotice('Couldn’t open that link. Paste the whole text from Google Maps’ Share button, or open the link and copy the full address.')
+        return
+      }
+      setNotice(`Looking up “${name}”…`)
+      const match = await matchGooglePlace(name, null, view, ctrl.signal)
+      if (ctrl.signal.aborted) return
+      if (!match) {
+        setNotice(`Couldn’t find “${name}” on the map. Long-press its spot to add it yourself.`)
+        return
+      }
+      setNotice(null)
+      showCandidate({ ...match, source: 'google', googleUrl: link.url })
+      flyTo(match.lat, match.lng)
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') setNotice('Couldn’t look up that place. Check your connection and try again.')
+    }
+  }
 
   const sheetPlace = selectedPlace ?? candidate
 
@@ -229,6 +281,7 @@ export default function App() {
                 showCandidate(r)
                 flyTo(r.lat, r.lng)
               }}
+              onGoogleLink={openGoogleLink}
             />
             <StyleSwitcher value={themeId} onChange={setThemeId} />
           </div>

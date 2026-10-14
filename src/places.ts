@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 export type PlaceStatus = 'wishlist' | 'visited'
-export type PlaceSource = 'map' | 'search' | 'custom'
+export type PlaceSource = 'map' | 'search' | 'custom' | 'google'
 
 /** A place on the map that may or may not be saved yet. */
 export interface PlaceInfo {
@@ -16,6 +16,8 @@ export interface PlaceInfo {
   cuisine?: string
   address?: string
   openingHours?: string
+  /** The Google Maps link the place was added from, if any. */
+  googleUrl?: string
   source: PlaceSource
 }
 

@@ -25,6 +25,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Optional: URL of the deployed link-expander worker (repository variable).
+          VITE_LINK_EXPANDER_URL: ${{ vars.LINK_EXPANDER_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
