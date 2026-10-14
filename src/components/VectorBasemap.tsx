@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { TileLayer, useMap } from 'react-leaflet'
-import { setWorkerUrl, type StyleSpecification } from 'maplibre-gl'
+import { setWorkerUrl, type Map as GLMap, type StyleSpecification } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { maplibreGL } from '@maplibre/maplibre-gl-leaflet'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -17,7 +17,15 @@ const OFM_ATTRIBUTION =
  * Crisp vector basemap (MapLibre rendered inside Leaflet), recoloured per theme.
  * Falls back to the theme's raster tiles if the vector style can't be loaded.
  */
-export default function VectorBasemap({ theme }: { theme: ThemeConfig }) {
+interface Props {
+  theme: ThemeConfig
+  /** Show OpenStreetMap restaurant/café dots. */
+  showFood?: boolean
+  /** Receives the MapLibre map once created (for querying restaurant features). */
+  onReady?: (gl: GLMap | null) => void
+}
+
+export default function VectorBasemap({ theme, showFood = true, onReady }: Props) {
   const map = useMap()
   const layerRef = useRef<ReturnType<typeof maplibreGL> | null>(null)
   const [base, setBase] = useState<StyleSpecification | null>(null)
@@ -36,7 +44,7 @@ export default function VectorBasemap({ theme }: { theme: ThemeConfig }) {
 
   useEffect(() => {
     if (!base) return
-    const style = themedStyle(base, theme.id)
+    const style = themedStyle(base, theme.id, showFood)
     if (layerRef.current) {
       layerRef.current.getMaplibreMap().setStyle(style, { diff: true })
       return
@@ -44,13 +52,16 @@ export default function VectorBasemap({ theme }: { theme: ThemeConfig }) {
     const layer = maplibreGL({ style, attributionControl: { customAttribution: OFM_ATTRIBUTION } })
     layer.addTo(map)
     layerRef.current = layer
-  }, [base, theme.id, map])
+    onReady?.(layer.getMaplibreMap())
+  }, [base, theme.id, showFood, map, onReady])
 
   useEffect(
     () => () => {
       layerRef.current?.remove()
       layerRef.current = null
+      onReady?.(null)
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount only
     [],
   )
 

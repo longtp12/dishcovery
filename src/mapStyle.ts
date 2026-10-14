@@ -24,6 +24,10 @@ export interface MapPalette {
   roadLabel: string
   waterLabel: string
   halo: string
+  /** Restaurant / café dots from OpenStreetMap. */
+  food: string
+  foodStroke: string
+  foodLabel: string
 }
 
 export const PALETTES: Record<ThemeId, MapPalette> = {
@@ -46,6 +50,9 @@ export const PALETTES: Record<ThemeId, MapPalette> = {
     roadLabel: '#6E7872',
     waterLabel: '#3F7C86',
     halo: '#F6F7F5',
+    food: '#E07A2E',
+    foodStroke: '#FFFFFF',
+    foodLabel: '#8A4A16',
   },
   night: {
     bg: '#15181B',
@@ -66,6 +73,9 @@ export const PALETTES: Record<ThemeId, MapPalette> = {
     roadLabel: '#7F868D',
     waterLabel: '#5D8EA0',
     halo: '#121417',
+    food: '#F5A524',
+    foodStroke: '#121417',
+    foodLabel: '#E2B567',
   },
   pop: {
     bg: '#FFF4D6',
@@ -86,6 +96,9 @@ export const PALETTES: Record<ThemeId, MapPalette> = {
     roadLabel: '#333333',
     waterLabel: '#1F4FD8',
     halo: '#FFF4D6',
+    food: '#FF5C8A',
+    foodStroke: '#111111',
+    foodLabel: '#111111',
   },
 }
 
@@ -126,18 +139,78 @@ function paintFor(id: string, type: LayerSpecification['type'], p: MapPalette): 
 // Show places in their local language (e.g. "Hà Nội" rather than "Hanoi"), like Google Maps.
 const LOCAL_NAME: ExpressionSpecification = ['coalesce', ['get', 'name'], ['get', 'name_en']]
 
-export function themedStyle(base: StyleSpecification, theme: ThemeId): StyleSpecification {
+export const FOOD_LAYER_IDS = ['dish-food-dot', 'dish-food-label']
+export const FOOD_CLASSES = ['restaurant', 'fast_food', 'cafe', 'bar', 'beer', 'ice_cream', 'bakery']
+
+/** Restaurant, café and bar points from the vector tiles' POI layer. */
+function foodLayers(p: MapPalette, visible: boolean): LayerSpecification[] {
+  const filter: ExpressionSpecification = [
+    'all',
+    ['==', ['geometry-type'], 'Point'],
+    ['has', 'name'],
+    ['in', ['get', 'class'], ['literal', FOOD_CLASSES]],
+  ]
+  return [
+    {
+      id: 'dish-food-dot',
+      type: 'circle',
+      source: 'openmaptiles',
+      'source-layer': 'poi',
+      minzoom: 14,
+      filter,
+      layout: { visibility: visible ? 'visible' : 'none' },
+      paint: {
+        'circle-color': p.food,
+        // Small and soft when zoomed out (dense streets get busy), full-size up close.
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 1.6, 15.5, 2.6, 16.5, 4.5, 18, 6.5],
+        'circle-stroke-color': p.foodStroke,
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 14, 0.5, 16, 1.5, 17, 2],
+        'circle-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.45, 16, 1],
+        'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.45, 16, 1],
+      },
+    },
+    {
+      id: 'dish-food-label',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'poi',
+      minzoom: 16,
+      filter,
+      layout: {
+        'text-field': LOCAL_NAME,
+        'text-font': ['Noto Sans Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 16, 10.5, 18, 12.5],
+        'text-anchor': 'top',
+        'text-offset': [0, 0.6],
+        'text-max-width': 8,
+        'text-optional': true,
+        visibility: visible ? 'visible' : 'none',
+      },
+      paint: {
+        'text-color': p.foodLabel,
+        'text-halo-color': p.halo,
+        'text-halo-width': 1.4,
+      },
+    },
+  ]
+}
+
+export function themedStyle(base: StyleSpecification, theme: ThemeId, showFood = true): StyleSpecification {
   const palette = PALETTES[theme]
+  const layers = base.layers.map((layer) => {
+    const paint = paintFor(layer.id, layer.type, palette)
+    const next = paint ? { ...layer, paint: { ...layer.paint, ...paint } } : { ...layer }
+    if (layer.type === 'symbol' && layer.layout?.['text-field'] && !layer.id.includes('shield')) {
+      next.layout = { ...layer.layout, 'text-field': LOCAL_NAME }
+    }
+    return next as LayerSpecification
+  })
+  // Food sits above roads/buildings but below place labels.
+  const firstLabel = layers.findIndex((l) => l.id.startsWith('label_'))
+  const at = firstLabel === -1 ? layers.length : firstLabel
   return {
     ...base,
-    layers: base.layers.map((layer) => {
-      const paint = paintFor(layer.id, layer.type, palette)
-      const next = paint ? { ...layer, paint: { ...layer.paint, ...paint } } : { ...layer }
-      if (layer.type === 'symbol' && layer.layout?.['text-field'] && !layer.id.includes('shield')) {
-        next.layout = { ...layer.layout, 'text-field': LOCAL_NAME }
-      }
-      return next as LayerSpecification
-    }),
+    layers: [...layers.slice(0, at), ...foodLayers(palette, showFood), ...layers.slice(at)],
   }
 }
 

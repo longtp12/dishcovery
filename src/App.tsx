@@ -1,16 +1,22 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { LatLngTuple } from 'leaflet'
-import MapView from './components/MapView'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { LatLngTuple, Map as LeafletMap } from 'leaflet'
+import type { Map as GLMap } from 'maplibre-gl'
+import MapView, { type FocusRequest } from './components/MapView'
+import PlaceSheet from './components/PlaceSheet'
+import SearchBox from './components/SearchBox'
 import StyleSwitcher from './components/StyleSwitcher'
-import { BookmarkIcon, ImportIcon, LocateIcon, MapIcon, SearchIcon } from './components/Icons'
+import { BookmarkIcon, ImportIcon, LocateIcon, MapIcon } from './components/Icons'
+import { searchLoadedFood } from './mapFeatures'
+import { lookupPlace, reverseGeocode } from './osm'
+import { usePlaces, type PlaceInfo, type PlaceStatus } from './places'
 import { THEMES, loadTheme, saveTheme, type ThemeId } from './themes'
 
 type Filter = 'all' | 'wishlist' | 'visited'
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'wishlist', label: 'Wishlist' },
-  { id: 'visited', label: 'Visited' },
-]
+
+type Selection =
+  | { type: 'saved'; id: string }
+  | { type: 'candidate'; info: PlaceInfo; custom: boolean }
+  | null
 
 export default function App() {
   const [themeId, setThemeId] = useState<ThemeId>(loadTheme)
@@ -18,6 +24,13 @@ export default function App() {
   const [position, setPosition] = useState<LatLngTuple | null>(null)
   const [locating, setLocating] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [selection, setSelection] = useState<Selection>(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
+  const [focus, setFocus] = useState<FocusRequest | null>(null)
+  const mapRef = useRef<LeafletMap | null>(null)
+  const glRef = useRef<GLMap | null>(null)
+  const detailsAbort = useRef<AbortController | null>(null)
+  const { places, save, update, remove } = usePlaces()
   const theme = THEMES[themeId]
 
   useEffect(() => {
@@ -60,45 +73,211 @@ export default function App() {
     return () => clearTimeout(t)
   }, [notice])
 
+  const counts = useMemo(
+    () => ({
+      all: places.length,
+      wishlist: places.filter((p) => p.status === 'wishlist').length,
+      visited: places.filter((p) => p.status === 'visited').length,
+    }),
+    [places],
+  )
+  const visiblePlaces = useMemo(
+    () => (filter === 'all' ? places : places.filter((p) => p.status === filter)),
+    [places, filter],
+  )
+
+  const selectedPlace = selection?.type === 'saved' ? places.find((p) => p.id === selection.id) : undefined
+  const candidate = selection?.type === 'candidate' ? selection.info : null
+
+  /** Show an unsaved place; fill in cuisine/address/hours in the background. */
+  const showCandidate = useCallback(
+    (info: PlaceInfo, custom = false) => {
+      detailsAbort.current?.abort()
+      const already = info.osmId ? places.find((p) => p.osmId === info.osmId) : undefined
+      if (already) {
+        setSelection({ type: 'saved', id: already.id })
+        return
+      }
+      setSelection({ type: 'candidate', info, custom })
+      const needsDetails = custom ? !info.address : info.osmId && !(info.cuisine || info.address)
+      if (!needsDetails) {
+        setLoadingDetails(false)
+        return
+      }
+      const ctrl = new AbortController()
+      detailsAbort.current = ctrl
+      setLoadingDetails(true)
+      const fetchDetails: Promise<Partial<PlaceInfo> | null> = custom
+        ? reverseGeocode(info.lat, info.lng, ctrl.signal).then((address) => (address ? { address } : null))
+        : lookupPlace(info.osmId!, ctrl.signal).then((d) =>
+            d ? { cuisine: d.cuisine, address: d.address, openingHours: d.openingHours, kind: info.kind ?? d.kind } : null,
+          )
+      fetchDetails
+        .then((extra) => {
+          if (!extra || ctrl.signal.aborted) return
+          setSelection((sel) =>
+            sel?.type === 'candidate' && sel.info === info ? { ...sel, info: { ...info, ...extra } } : sel,
+          )
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (detailsAbort.current === ctrl) setLoadingDetails(false)
+        })
+    },
+    [places],
+  )
+
+  const closeSheet = useCallback(() => {
+    detailsAbort.current?.abort()
+    setLoadingDetails(false)
+    setSelection(null)
+  }, [])
+
+  const handleSave = (status: PlaceStatus, name: string) => {
+    if (selection?.type === 'saved' && selectedPlace) {
+      save(selectedPlace, status, selectedPlace.id)
+      setNotice(status === 'visited' ? `Marked ${selectedPlace.name} as visited` : `Moved ${selectedPlace.name} to your wishlist`)
+      return
+    }
+    if (selection?.type === 'candidate') {
+      const info = { ...selection.info, name: name || selection.info.name }
+      const id = save(info, status)
+      setSelection({ type: 'saved', id })
+      setNotice(status === 'visited' ? `Saved ${info.name} as visited` : `Added ${info.name} to your wishlist`)
+      if (filter !== 'all' && filter !== status) setFilter('all')
+    }
+  }
+
+  const handleRemove = () => {
+    if (!selectedPlace) return
+    remove(selectedPlace.id)
+    setNotice(`Removed ${selectedPlace.name}`)
+    // Keep it on screen as an unsaved place so a mis-tap is easy to undo.
+    const { name, lat, lng, osmId, kind, cuisine, address, openingHours, source } = selectedPlace
+    const info: PlaceInfo = { name, lat, lng, osmId, kind, cuisine, address, openingHours, source }
+    setSelection({ type: 'candidate', info, custom: false })
+  }
+
+  // Saved places from search/map get details filled in lazily if they were saved before details loaded.
+  useEffect(() => {
+    if (!selectedPlace?.osmId || selectedPlace.cuisine || selectedPlace.address) return
+    const ctrl = new AbortController()
+    lookupPlace(selectedPlace.osmId, ctrl.signal)
+      .then((d) => d && update(selectedPlace.id, { cuisine: d.cuisine, address: d.address, openingHours: d.openingHours }))
+      .catch(() => {})
+    return () => ctrl.abort()
+  }, [selectedPlace, update])
+
+  const getView = useCallback(() => {
+    const b = mapRef.current?.getBounds()
+    return b ? { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() } : null
+  }, [])
+
+  const onMap = useCallback((m: LeafletMap) => {
+    mapRef.current = m
+  }, [])
+
+  const onGL = useCallback((gl: GLMap | null) => {
+    glRef.current = gl
+    if (import.meta.env.DEV) Object.assign(window, { __gl: gl }) // handy for debugging in the console
+  }, [])
+
+  const searchNearby = useCallback(
+    (query: string) => (glRef.current ? searchLoadedFood(glRef.current, query) : []),
+    [],
+  )
+
+  const flyTo = (lat: number, lng: number) => setFocus({ lat, lng, zoom: 17, key: Date.now() })
+
+  const sheetPlace = selectedPlace ?? candidate
+
   return (
     <div className="app">
       <main className="map-area">
-        <MapView theme={theme} position={position} />
+        <MapView
+          theme={theme}
+          showFood={filter === 'all'}
+          position={position}
+          places={visiblePlaces}
+          selectedId={selectedPlace?.id ?? null}
+          candidate={candidate}
+          focus={focus}
+          onSelectPlace={(id) => setSelection({ type: 'saved', id })}
+          onPickFeature={(info) => showCandidate(info)}
+          onLongPress={(lat, lng) => {
+            showCandidate({ name: '', lat, lng, source: 'custom' }, true)
+          }}
+          onBackgroundClick={closeSheet}
+          onMap={onMap}
+          onGL={onGL}
+        />
 
         <div className="top-overlay">
           <div className="top-row">
-            <label className="search">
-              <SearchIcon />
-              <input type="search" placeholder="Search restaurants or places" aria-label="Search" disabled />
-            </label>
+            <SearchBox
+              places={places}
+              getView={getView}
+              searchNearby={searchNearby}
+              onPickSaved={(id) => {
+                const p = places.find((x) => x.id === id)
+                if (!p) return
+                if (filter !== 'all' && filter !== p.status) setFilter('all')
+                setSelection({ type: 'saved', id })
+                flyTo(p.lat, p.lng)
+              }}
+              onPickResult={(r) => {
+                showCandidate(r)
+                flyTo(r.lat, r.lng)
+              }}
+            />
             <StyleSwitcher value={themeId} onChange={setThemeId} />
           </div>
           <div className="chips" role="tablist" aria-label="Filter places">
-            {FILTERS.map((f) => (
+            {(['all', 'wishlist', 'visited'] as const).map((f) => (
               <button
-                key={f.id}
+                key={f}
                 role="tab"
-                aria-selected={filter === f.id}
-                className={`chip chip-${f.id}`}
-                onClick={() => setFilter(f.id)}
+                aria-selected={filter === f}
+                className={`chip chip-${f}`}
+                onClick={() => setFilter(f)}
               >
-                {f.id !== 'all' && <span className="dot" aria-hidden />}
-                {f.label}
+                {f !== 'all' && <span className="dot" aria-hidden />}
+                {{ all: 'All', wishlist: 'Wishlist', visited: 'Visited' }[f]}
+                {f !== 'all' && counts[f] > 0 && <span className="chip-count">{counts[f]}</span>}
               </button>
             ))}
           </div>
         </div>
 
-        <button
-          className={`icon-btn locate-btn${locating ? ' is-locating' : ''}`}
-          aria-label="Show my location"
-          onClick={() => locate()}
-        >
-          <LocateIcon />
-        </button>
+        {!sheetPlace && (
+          <button
+            className={`icon-btn locate-btn${locating ? ' is-locating' : ''}`}
+            aria-label="Show my location"
+            onClick={() => locate()}
+          >
+            <LocateIcon />
+          </button>
+        )}
+
+        {!sheetPlace && places.length === 0 && !notice && (
+          <div className="hint" role="note">
+            Tap a restaurant dot to save it, or long-press anywhere to add your own spot.
+          </div>
+        )}
+
+        {sheetPlace && (
+          <PlaceSheet
+            place={sheetPlace}
+            custom={selection?.type === 'candidate' && selection.custom}
+            loadingDetails={loadingDetails}
+            onSave={handleSave}
+            onRemove={handleRemove}
+            onClose={closeSheet}
+          />
+        )}
 
         {notice && (
-          <div className="toast" role="status">
+          <div className={`toast${sheetPlace ? ' above-sheet' : ''}`} role="status">
             {notice}
           </div>
         )}

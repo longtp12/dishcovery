@@ -60,3 +60,36 @@ export const CheckIcon = ({ size = 16 }: IconProps) => (
     <path d="m5 12 5 5 9-10" />
   </svg>
 )
+
+export const CloseIcon = ({ size = 20 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </svg>
+)
+
+export const DirectionsIcon = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M12 2 2 12l10 10 10-10L12 2Z" />
+    <path d="M9 13v-2a1 1 0 0 1 1-1h5M13 7.5 15.5 10 13 12.5" />
+  </svg>
+)
+
+export const TrashIcon = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+  </svg>
+)
+
+export const PinIcon = ({ size = 16 }: IconProps) => (
+  <svg {...base(size)}>
+    <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" />
+    <circle cx="12" cy="9.5" r="2.5" />
+  </svg>
+)
+
+export const ClockIcon = ({ size = 16 }: IconProps) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+)

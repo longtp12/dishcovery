@@ -4,6 +4,13 @@ A free restaurant tracker: keep a map of the places you've visited and the ones 
 
 Built with React, TypeScript, Vite and Leaflet, with a MapLibre vector basemap from OpenFreeMap (free, no API key).
 
+## Features
+
+- **Restaurant dots** from OpenStreetMap (restaurants, cafés, bars…) straight from the map tiles. Tap one to see cuisine, address and hours, then save it.
+- **Search**: instant, accent-insensitive matches over your saved places and nearby restaurants as you type; press Enter to search everywhere (Nominatim).
+- **Long-press** anywhere to drop and name your own place.
+- **Wishlist / Visited** pins and filter chips. Places are saved in this browser's localStorage for now.
+
 ## Develop
 
 ```bash
