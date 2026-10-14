@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "emulators": "firebase emulators:start --only auth,firestore --project demo-dishcovery",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-dishcovery 'node --test tests/'"
+    "test:rules": "firebase emulators:exec --only firestore --project demo-dishcovery 'node --test tests/'",
+    "test:rules:running": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node --test tests/"
   },
   "dependencies": {
     "@maplibre/maplibre-gl-leaflet": "^0.1.4",

@@ -3,6 +3,14 @@
 Signed-in users' places are stored in Firestore under `users/{uid}/places`, synced across
 devices and cached offline. Without this setup the app keeps places in the browser only.
 
+Also in Firestore:
+- `sharedPlaces/{id}`: community places, added automatically when someone saves a place from a
+  Google Maps link. Every signed-in user sees them; only the person who added one can rename or remove it.
+- `lists/{listId}` (+ `lists/{listId}/places`): shared lists. The owner invites people by Google email;
+  members see and change the list's places; only the owner renames, manages members or deletes.
+
+Whenever `firestore.rules` changes, publish it again (step 3.2).
+
 The free **Spark** plan is enough; you never need to add billing.
 
 ## 1. Create the project
@@ -40,7 +48,7 @@ The free **Spark** plan is enough; you never need to add billing.
    (no duplicates; a backup copy stays in the browser).
 
 These values identify your project; they are not secrets. Access is protected by the
-sign-in and the security rules, which only let each person read and write their own places.
+sign-in and the security rules (see the top of this file for who can see what).
 
 ## 5. GitHub Pages build
 Add the same values as **repository variables** (Settings → Secrets and variables → Actions → Variables),
@@ -59,4 +67,10 @@ VITE_FIREBASE_AUTH_DOMAIN=demo-dishcovery.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=demo-dishcovery
 VITE_FIREBASE_APP_ID=1:1:web:1
 VITE_FIREBASE_EMULATORS=true
+```
+
+### Security rules tests
+```bash
+npm run test:rules           # starts a Firestore emulator, runs tests/rules.test.mjs, stops it
+npm run test:rules:running   # same tests against emulators you already started with `npm run emulators`
 ```
