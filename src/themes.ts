@@ -27,6 +27,10 @@ export const THEMES: Record<ThemeId, ThemeConfig> = {
 
 export const THEME_IDS = Object.keys(THEMES) as ThemeId[]
 
+export const DEFAULT_THEME: ThemeId = 'pop'
+
+export const isThemeId = (v: unknown): v is ThemeId => typeof v === 'string' && v in THEMES
+
 const STORAGE_KEY = 'dishcovery.theme'
 
 export function loadTheme(): ThemeId {
@@ -36,7 +40,7 @@ export function loadTheme(): ThemeId {
   } catch {
     // storage unavailable (private mode etc.)
   }
-  return 'fresh'
+  return DEFAULT_THEME
 }
 
 export function saveTheme(id: ThemeId) {

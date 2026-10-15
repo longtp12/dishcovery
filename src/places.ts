@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { cloudConfigured, getCloud, type Cloud, type CloudUser } from './cloud'
+import { cloudConfigured, getCloud, type Cloud, type CloudUser, type Prefs } from './cloud'
 import { metresBetween } from './gmaps'
 import { fold } from './text'
 
@@ -179,6 +179,8 @@ export function usePlaces() {
   const [online, setOnline] = useState(() => navigator.onLine)
   const [message, setMessage] = useState<string | null>(null)
   const [community, setCommunity] = useState<SharedPlace[]>([])
+  /** Signed in: the account's saved settings (undefined until loaded, null if none yet). */
+  const [prefs, setPrefs] = useState<Prefs | null | undefined>(undefined)
   const [lists, setLists] = useState<PlaceList[]>([])
   const [listPlaces, setListPlaces] = useState<Record<string, Place[]>>({})
   const [scope, setScope] = useState<Scope>(() => {
@@ -252,6 +254,22 @@ export function usePlaces() {
       setMessage('Couldn’t load your places from the cloud. Showing what’s saved offline.'),
     )
   }, [user])
+
+  // Signed in: follow the account's settings (theme).
+  useEffect(() => {
+    const c = cloudRef.current
+    setPrefs(undefined)
+    if (!user || !c) return
+    return c.watchPrefs(user.uid, setPrefs, () => setPrefs(null))
+  }, [user])
+
+  const savePrefs = useCallback(
+    (next: Prefs) => {
+      const c = cloudRef.current
+      if (user && c) c.putPrefs(user.uid, next).catch(() => {})
+    },
+    [user],
+  )
 
   // Signed in: follow the community places (signed-out users don't see them).
   useEffect(() => {
@@ -549,6 +567,8 @@ export function usePlaces() {
     update,
     remove,
     setReview,
+    prefs,
+    savePrefs,
     community,
     renameShared,
     removeShared,

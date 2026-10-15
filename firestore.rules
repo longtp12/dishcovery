@@ -132,6 +132,15 @@ service cloud.firestore {
       return signedIn() && (list.ownerUid == request.auth.uid || isInvited(list));
     }
 
+    // users/{uid}: your own settings (just the theme for now), private to you.
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['theme', 'updatedAt'])
+        && optString(request.resource.data, 'theme', 30)
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is number);
+    }
+
     match /users/{uid}/places/{placeId} {
       allow read, delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && placeId.size() <= 64 && validPlace(request.resource.data);

@@ -28,7 +28,7 @@ import {
   writeBatch,
   type QuerySnapshot,
 } from 'firebase/firestore'
-import { firebaseConfig, useEmulators, type Cloud } from './cloud'
+import { firebaseConfig, useEmulators, type Cloud, type Prefs } from './cloud'
 import type { Place, PlaceList, Scope, SharedPlace } from './places'
 
 /** Fields we store; anything else on the object is dropped (keeps the security rules simple). */
@@ -159,6 +159,16 @@ export function createCloud(): Cloud {
     updateShared: (id, patch) => updateDoc(doc(sharedCol, id), { ...patch, updatedAt: Date.now() }),
 
     deleteShared: (id) => deleteDoc(doc(sharedCol, id)),
+
+    watchPrefs(uid, cb, onError) {
+      return onSnapshot(
+        doc(db, 'users', uid),
+        (snap) => cb(snap.exists() ? (snap.data() as Prefs) : null),
+        onError,
+      )
+    },
+
+    putPrefs: (uid, prefs) => setDoc(doc(db, 'users', uid), { ...prefs, updatedAt: Date.now() }, { merge: true }),
 
     watchLists(user, cb, onError) {
       // Lists you own, plus lists your email was invited to (usually the same ones for an owner).

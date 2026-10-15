@@ -49,6 +49,10 @@ export interface Cloud {
   updateShared(id: string, patch: { name: string }): Promise<void>
   deleteShared(id: string): Promise<void>
 
+  /** The user's settings (users/{uid}); null when none are saved yet. */
+  watchPrefs(uid: string, cb: (prefs: Prefs | null) => void, onError: (err: Error) => void): () => void
+  putPrefs(uid: string, prefs: Prefs): Promise<void>
+
   /** Shared lists the user owns or was invited to (by email). */
   watchLists(user: CloudUser, cb: (lists: PlaceList[]) => void, onError: (err: Error) => void): () => void
   /** Returns the new list's id straight away; the write syncs in the background. */
@@ -58,6 +62,11 @@ export interface Cloud {
   leaveList(id: string, uid: string, email: string): Promise<void>
   /** Deletes the list and all its places (owner only). */
   deleteList(id: string): Promise<void>
+}
+
+/** Settings that follow a signed-in user across devices. */
+export interface Prefs {
+  theme?: string
 }
 
 let cloud: Promise<Cloud> | null = null

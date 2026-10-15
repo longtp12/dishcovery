@@ -24,7 +24,7 @@ import {
   type Scope,
   type SharedPlace,
 } from './places'
-import { THEMES, loadTheme, saveTheme, type ThemeId } from './themes'
+import { THEMES, isThemeId, loadTheme, saveTheme, type ThemeId } from './themes'
 
 type Filter = 'all' | 'wishlist' | 'visited'
 
@@ -67,6 +67,8 @@ export default function App() {
     update,
     remove,
     setReview,
+    prefs,
+    savePrefs,
     community,
     renameShared,
     removeShared,
@@ -74,6 +76,20 @@ export default function App() {
     message,
     clearMessage,
   } = usePlaces()
+  // Signed in, the theme follows your account: use the saved one, or save this device's if there's none yet.
+  useEffect(() => {
+    if (prefs === undefined) return
+    if (prefs && isThemeId(prefs.theme)) setThemeId(prefs.theme)
+    else savePrefs({ theme: themeId })
+    // Only when the account's settings arrive or change, not on every local theme change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs])
+
+  const pickTheme = (id: ThemeId) => {
+    setThemeId(id)
+    if (cloud.user) savePrefs({ theme: id })
+  }
+
   /** Bottom tabs: the map, or the "My Places" list. */
   const [view, setView] = useState<'map' | 'list'>('map')
   /** The list manager dialog: 'new', a list id, or closed. */
@@ -434,7 +450,7 @@ export default function App() {
                   }}
                   onGoogleLink={openGoogleLink}
                 />
-                <AppMenu theme={themeId} onTheme={setThemeId} cloud={cloud} placeCount={places.length} />
+                <AppMenu theme={themeId} onTheme={pickTheme} cloud={cloud} placeCount={places.length} />
               </div>
               <div className="filter-row">
                 {switcher}

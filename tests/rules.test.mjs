@@ -283,3 +283,19 @@ describe('ratings and reviews', () => {
     )
   })
 })
+
+describe('settings', () => {
+  test('only you can read and write your theme', async () => {
+    await assertSucceeds(setDoc(doc(user('alice'), 'users/alice'), { theme: 'mint', updatedAt: 1 }))
+    await assertSucceeds(getDoc(doc(user('alice'), 'users/alice')))
+    await assertFails(getDoc(doc(user('bob'), 'users/alice')))
+    await assertFails(setDoc(doc(user('bob'), 'users/alice'), { theme: 'pop' }))
+    await assertFails(getDoc(doc(anon(), 'users/alice')))
+  })
+
+  test('nothing but the theme is stored', async () => {
+    await assertFails(setDoc(doc(user('alice'), 'users/alice'), { theme: 'mint', isAdmin: true }))
+    await assertFails(setDoc(doc(user('alice'), 'users/alice'), { theme: 7 }))
+    await assertFails(setDoc(doc(user('alice'), 'users/alice'), { theme: 'x'.repeat(31) }))
+  })
+})
