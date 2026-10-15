@@ -1,4 +1,4 @@
-export type ThemeId = 'fresh' | 'night' | 'pop' | 'pastel'
+export type ThemeId = 'fresh' | 'night' | 'pop' | 'lavender' | 'mint' | 'strawberry'
 
 export interface ThemeConfig {
   id: ThemeId
@@ -19,7 +19,10 @@ export const THEMES: Record<ThemeId, ThemeConfig> = {
   fresh: { id: 'fresh', label: 'Fresh', themeColor: '#F6F7F5', tiles: OSM_TILES },
   night: { id: 'night', label: 'Night', themeColor: '#121417', tiles: OSM_TILES },
   pop: { id: 'pop', label: 'Pop', themeColor: '#FFF4D6', tiles: OSM_TILES },
-  pastel: { id: 'pastel', label: 'Pastel', themeColor: '#FBF7FF', tiles: OSM_TILES },
+  // Pastel styles.
+  lavender: { id: 'lavender', label: 'Lavender', themeColor: '#FBF7FF', tiles: OSM_TILES },
+  mint: { id: 'mint', label: 'Mint', themeColor: '#F2FBF7', tiles: OSM_TILES },
+  strawberry: { id: 'strawberry', label: 'Strawberry', themeColor: '#FFF6F8', tiles: OSM_TILES },
 }
 
 export const THEME_IDS = Object.keys(THEMES) as ThemeId[]

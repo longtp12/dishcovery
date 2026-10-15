@@ -55,8 +55,8 @@
   color-scheme: light;
 }
 
-[data-theme='pastel'] {
-  /* Pastel: soft lavender, mint, blush and peach with plum ink and sticker-style outlines. */
+[data-theme='lavender'] {
+  /* Lavender (pastel): soft lavender, mint, blush and peach with plum ink and sticker-style outlines. */
   --font: 'Bricolage Grotesque', system-ui, sans-serif;
   --bg: #fbf7ff;
   --surface: #ffffff;
@@ -70,6 +70,44 @@
   --border: 2px solid #2f2a4a;
   --shadow: 3px 3px 0 #c9bcff;
   --shadow-sm: 3px 3px 0 #c9bcff;
+  --weight-strong: 700;
+  color-scheme: light;
+}
+
+[data-theme='mint'] {
+  /* Mint (pastel): mint, periwinkle and apricot with deep-teal ink and sticker-style outlines. */
+  --font: 'Bricolage Grotesque', system-ui, sans-serif;
+  --bg: #f2fbf7;
+  --surface: #ffffff;
+  --ink: #1f3b44;
+  --muted: #5c7a80;
+  --visited: #1e8a70;
+  --wishlist: #ffc27a;
+  --accent: #1e8a70;
+  --on-accent: #ffffff;
+  --radius: 18px;
+  --border: 2px solid #1f3b44;
+  --shadow: 3px 3px 0 #a6e3cf;
+  --shadow-sm: 3px 3px 0 #a6e3cf;
+  --weight-strong: 700;
+  color-scheme: light;
+}
+
+[data-theme='strawberry'] {
+  /* Strawberry (pastel): strawberry-milk pink, blush and periwinkle with berry ink and sticker-style outlines. */
+  --font: 'Bricolage Grotesque', system-ui, sans-serif;
+  --bg: #fff6f8;
+  --surface: #ffffff;
+  --ink: #4a2340;
+  --muted: #8a6680;
+  --visited: #7c6fe6;
+  --wishlist: #ff9eb5;
+  --accent: #c93d72;
+  --on-accent: #ffffff;
+  --radius: 18px;
+  --border: 2px solid #4a2340;
+  --shadow: 3px 3px 0 #ffc2d6;
+  --shadow-sm: 3px 3px 0 #ffc2d6;
   --weight-strong: 700;
   color-scheme: light;
 }
@@ -758,9 +796,19 @@ input:focus-visible {
   box-shadow: 2px 2px 0 #111;
 }
 
-[data-theme='pastel'] .account-btn {
+[data-theme='lavender'] .account-btn {
   border: 2px solid var(--ink);
   box-shadow: 2px 2px 0 #c9bcff;
+}
+
+[data-theme='mint'] .account-btn {
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 #a6e3cf;
+}
+
+[data-theme='strawberry'] .account-btn {
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 #ffc2d6;
 }
 
 .sync-status {
@@ -833,10 +881,22 @@ input:focus-visible {
   box-shadow: 2px 2px 0 #111;
 }
 
-.swatch-pastel {
+.swatch-lavender {
   background: linear-gradient(135deg, #fce6f1 50%, #8b7cf6 50%);
   border: 2px solid #2f2a4a;
   box-shadow: 2px 2px 0 #c9bcff;
+}
+
+.swatch-mint {
+  background: linear-gradient(135deg, #e6f0fb 50%, #1e8a70 50%);
+  border: 2px solid #1f3b44;
+  box-shadow: 2px 2px 0 #a6e3cf;
+}
+
+.swatch-strawberry {
+  background: linear-gradient(135deg, #fce7ee 50%, #c93d72 50%);
+  border: 2px solid #4a2340;
+  box-shadow: 2px 2px 0 #ffc2d6;
 }
 
 /* ---------- Place sheet ---------- */
@@ -1179,7 +1239,15 @@ input:focus-visible {
   box-shadow: var(--shadow-sm);
 }
 
-[data-theme='pastel'] .status-btn {
+[data-theme='lavender'] .status-btn {
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme='mint'] .status-btn {
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme='strawberry'] .status-btn {
   box-shadow: var(--shadow-sm);
 }
 
@@ -1267,7 +1335,15 @@ input:focus-visible {
   filter: none;
 }
 
-[data-theme='pastel'] .pin {
+[data-theme='lavender'] .pin {
+  filter: none;
+}
+
+[data-theme='mint'] .pin {
+  filter: none;
+}
+
+[data-theme='strawberry'] .pin {
   filter: none;
 }
 
@@ -1276,9 +1352,19 @@ input:focus-visible {
   box-shadow: 2px 2px 0 #111;
 }
 
-[data-theme='pastel'] .pin-body {
+[data-theme='lavender'] .pin-body {
   border-color: var(--ink);
   box-shadow: 2px 2px 0 #c9bcff;
+}
+
+[data-theme='mint'] .pin-body {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 #a6e3cf;
+}
+
+[data-theme='strawberry'] .pin-body {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 #ffc2d6;
 }
 
 @keyframes pin-drop {
@@ -1397,11 +1483,25 @@ input:focus-visible {
   box-shadow: 2px 2px 0 #111;
 }
 
-[data-theme='pastel'] .tab.is-active {
+[data-theme='lavender'] .tab.is-active {
   color: var(--ink);
   background: var(--wishlist);
   border: 2px solid var(--ink);
   box-shadow: 2px 2px 0 #c9bcff;
+}
+
+[data-theme='mint'] .tab.is-active {
+  color: var(--ink);
+  background: var(--wishlist);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 #a6e3cf;
+}
+
+[data-theme='strawberry'] .tab.is-active {
+  color: var(--ink);
+  background: var(--wishlist);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 #ffc2d6;
 }
 
 /* ---------- Leaflet overrides ---------- */
@@ -1448,9 +1548,19 @@ input:focus-visible {
   box-shadow: 2px 2px 0 #111;
 }
 
-[data-theme='pastel'] .me-dot {
+[data-theme='lavender'] .me-dot {
   border-color: var(--ink);
   box-shadow: 2px 2px 0 #c9bcff;
+}
+
+[data-theme='mint'] .me-dot {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 #a6e3cf;
+}
+
+[data-theme='strawberry'] .me-dot {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 #ffc2d6;
 }
 
 .me-pulse {
@@ -1497,7 +1607,15 @@ input:focus-visible {
   filter: sepia(0.15) saturate(1.25);
 }
 
-[data-theme='pastel'] .raster-fallback {
+[data-theme='lavender'] .raster-fallback {
+  filter: saturate(0.8) brightness(1.05) hue-rotate(-10deg);
+}
+
+[data-theme='mint'] .raster-fallback {
+  filter: saturate(0.8) brightness(1.05) hue-rotate(-10deg);
+}
+
+[data-theme='strawberry'] .raster-fallback {
   filter: saturate(0.8) brightness(1.05) hue-rotate(-10deg);
 }
 
