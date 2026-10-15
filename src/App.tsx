@@ -7,6 +7,7 @@ import SearchBox from './components/SearchBox'
 import AppMenu from './components/AppMenu'
 import ListManager from './components/ListManager'
 import ListSwitcher from './components/ListSwitcher'
+import PlacesView from './components/PlacesView'
 import { BookmarkIcon, ImportIcon, LocateIcon, MapIcon } from './components/Icons'
 import { googlePlaceInfo, matchGooglePlace, resolveGoogleLink, type GoogleLink } from './gmaps'
 import { searchLoadedFood } from './mapFeatures'
@@ -73,6 +74,8 @@ export default function App() {
     message,
     clearMessage,
   } = usePlaces()
+  /** Bottom tabs: the map, or the "My Places" list. */
+  const [view, setView] = useState<'map' | 'list'>('map')
   /** The list manager dialog: 'new', a list id, or closed. */
   const [managing, setManaging] = useState<string | null>(null)
   const theme = THEMES[themeId]
@@ -358,101 +361,119 @@ export default function App() {
           onChange: (r: { rating: number; text?: string } | null) => setReview(target, targetSaved.id, r),
         }
       : undefined
+  const switcher = cloud.user && (
+    <ListSwitcher
+      lists={lists}
+      scope={scope}
+      uid={cloud.user.uid}
+      onScope={(s) => {
+        setScope(s)
+        closeSheet()
+      }}
+      onNew={() => setManaging('new')}
+      onManage={setManaging}
+    />
+  )
+
+  const openFromList = (id: string) => {
+    const p = places.find((x) => x.id === id)
+    if (!p) return
+    setView('map')
+    if (filter !== 'all' && filter !== p.status) setFilter('all')
+    setSelection({ type: 'saved', id })
+    flyTo(p.lat, p.lng)
+  }
+
   const managedList = managing && managing !== 'new' ? lists.find((l) => l.id === managing) : undefined
 
   return (
     <div className="app">
       <main className="map-area">
-        <MapView
-          theme={theme}
-          showFood={filter === 'all'}
-          position={position}
-          places={visiblePlaces}
-          selectedId={selectedPlace?.id ?? null}
-          candidate={candidate}
-          community={visibleCommunity}
-          selectedCommunityId={selectedShared?.id ?? null}
-          focus={focus}
-          onSelectPlace={(id) => setSelection({ type: 'saved', id })}
-          onSelectCommunity={(id) => setSelection({ type: 'community', id })}
-          onPickFeature={(info) => showCandidate(info)}
-          onLongPress={(lat, lng) => {
-            showCandidate({ name: '', lat, lng, source: 'custom' }, true)
-          }}
-          onBackgroundClick={closeSheet}
-          onMap={onMap}
-          onGL={onGL}
-        />
-
-        <div className="top-overlay">
-          <div className="top-row">
-            <SearchBox
-              places={places}
-              getView={getView}
-              searchNearby={searchNearby}
-              onPickSaved={(id) => {
-                const p = places.find((x) => x.id === id)
-                if (!p) return
-                if (filter !== 'all' && filter !== p.status) setFilter('all')
-                setSelection({ type: 'saved', id })
-                flyTo(p.lat, p.lng)
-              }}
-              onPickResult={(r) => {
-                showCandidate(r)
-                flyTo(r.lat, r.lng)
-              }}
-              onGoogleLink={openGoogleLink}
-            />
-            <AppMenu theme={themeId} onTheme={setThemeId} cloud={cloud} placeCount={places.length} />
-          </div>
-          <div className="filter-row">
-            {cloud.user && (
-              <ListSwitcher
-                lists={lists}
-                scope={scope}
-                uid={cloud.user.uid}
-                onScope={(s) => {
-                  setScope(s)
-                  closeSheet()
-                }}
-                onNew={() => setManaging('new')}
-                onManage={setManaging}
-              />
-            )}
-            <div className="chips" role="tablist" aria-label="Filter places">
-              {(['all', 'wishlist', 'visited'] as const).map((f) => (
-                <button
-                  key={f}
-                  role="tab"
-                  aria-selected={filter === f}
-                  className={`chip chip-${f}`}
-                  onClick={() => setFilter(f)}
-                >
-                  {f !== 'all' && <span className="dot" aria-hidden />}
-                  {{ all: 'All', wishlist: 'Wishlist', visited: 'Visited' }[f]}
-                  {f !== 'all' && counts[f] > 0 && <span className="chip-count">{counts[f]}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="map-layer" inert={view !== 'map'}>
+          <MapView
+            theme={theme}
+            showFood={filter === 'all'}
+            position={position}
+            places={visiblePlaces}
+            selectedId={selectedPlace?.id ?? null}
+            candidate={candidate}
+            community={visibleCommunity}
+            selectedCommunityId={selectedShared?.id ?? null}
+            focus={focus}
+            onSelectPlace={(id) => setSelection({ type: 'saved', id })}
+            onSelectCommunity={(id) => setSelection({ type: 'community', id })}
+            onPickFeature={(info) => showCandidate(info)}
+            onLongPress={(lat, lng) => {
+              showCandidate({ name: '', lat, lng, source: 'custom' }, true)
+            }}
+            onBackgroundClick={closeSheet}
+            onMap={onMap}
+            onGL={onGL}
+          />
         </div>
 
-        {!sheetPlace && (
-          <button
-            className={`icon-btn locate-btn${locating ? ' is-locating' : ''}`}
-            aria-label="Show my location"
-            onClick={() => locate()}
-          >
-            <LocateIcon />
-          </button>
-        )}
+        {view === 'map' && (
+          <>
 
-        {!sheetPlace && places.length === 0 && !notice && (
-          <div className="hint" role="note">
-            {scope === MINE
-              ? 'Tap a restaurant dot to save it, or long-press anywhere to add your own spot.'
-              : `Nothing in “${listLabel(scope)}” yet. Tap a restaurant dot to add it for everyone in the list.`}
-          </div>
+            <div className="top-overlay">
+              <div className="top-row">
+                <SearchBox
+                  places={places}
+                  getView={getView}
+                  searchNearby={searchNearby}
+                  onPickSaved={(id) => {
+                    const p = places.find((x) => x.id === id)
+                    if (!p) return
+                    if (filter !== 'all' && filter !== p.status) setFilter('all')
+                    setSelection({ type: 'saved', id })
+                    flyTo(p.lat, p.lng)
+                  }}
+                  onPickResult={(r) => {
+                    showCandidate(r)
+                    flyTo(r.lat, r.lng)
+                  }}
+                  onGoogleLink={openGoogleLink}
+                />
+                <AppMenu theme={themeId} onTheme={setThemeId} cloud={cloud} placeCount={places.length} />
+              </div>
+              <div className="filter-row">
+                {switcher}
+                <div className="chips" role="tablist" aria-label="Filter places">
+                  {(['all', 'wishlist', 'visited'] as const).map((f) => (
+                    <button
+                      key={f}
+                      role="tab"
+                      aria-selected={filter === f}
+                      className={`chip chip-${f}`}
+                      onClick={() => setFilter(f)}
+                    >
+                      {f !== 'all' && <span className="dot" aria-hidden />}
+                      {{ all: 'All', wishlist: 'Wishlist', visited: 'Visited' }[f]}
+                      {f !== 'all' && counts[f] > 0 && <span className="chip-count">{counts[f]}</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {!sheetPlace && (
+              <button
+                className={`icon-btn locate-btn${locating ? ' is-locating' : ''}`}
+                aria-label="Show my location"
+                onClick={() => locate()}
+              >
+                <LocateIcon />
+              </button>
+            )}
+
+            {!sheetPlace && places.length === 0 && !notice && (
+              <div className="hint" role="note">
+                {scope === MINE
+                  ? 'Tap a restaurant dot to save it, or long-press anywhere to add your own spot.'
+                  : `Nothing in “${listLabel(scope)}” yet. Tap a restaurant dot to add it for everyone in the list.`}
+              </div>
+            )}
+          </>
         )}
 
         {sheetPlace && (
@@ -479,6 +500,18 @@ export default function App() {
             onSave={handleSave}
             onRemove={handleRemove}
             onClose={closeSheet}
+          />
+        )}
+
+        {view === 'list' && (
+          <PlacesView
+            title={listLabel(scope)}
+            places={places}
+            shared={scope !== MINE}
+            filter={filter}
+            onFilter={setFilter}
+            switcher={switcher}
+            onOpen={openFromList}
           />
         )}
 
@@ -511,11 +544,22 @@ export default function App() {
       </main>
 
       <nav className="tabbar" aria-label="Main">
-        <button className="tab is-active" aria-current="page">
+        <button
+          className={`tab${view === 'map' ? ' is-active' : ''}`}
+          aria-current={view === 'map' ? 'page' : undefined}
+          onClick={() => setView('map')}
+        >
           <MapIcon />
           <span>Map</span>
         </button>
-        <button className="tab" disabled title="Coming soon">
+        <button
+          className={`tab${view === 'list' ? ' is-active' : ''}`}
+          aria-current={view === 'list' ? 'page' : undefined}
+          onClick={() => {
+            closeSheet()
+            setView('list')
+          }}
+        >
           <BookmarkIcon />
           <span>My Places</span>
         </button>

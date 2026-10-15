@@ -396,23 +396,27 @@ input:focus-visible {
   background: var(--wishlist);
 }
 
-.chip[aria-selected='true'] {
+.chip[aria-selected='true'],
+.chip[aria-pressed='true'] {
   background: var(--ink);
   color: var(--surface);
   font-weight: var(--weight-strong);
 }
 
-.chip-visited[aria-selected='true'] {
+.chip-visited[aria-selected='true'],
+.chip-visited[aria-pressed='true'] {
   background: var(--visited);
   color: #fff;
 }
 
-.chip-wishlist[aria-selected='true'] {
+.chip-wishlist[aria-selected='true'],
+.chip-wishlist[aria-pressed='true'] {
   background: var(--wishlist);
   color: #111;
 }
 
-.chip[aria-selected='true'] .dot {
+.chip[aria-selected='true'] .dot,
+.chip[aria-pressed='true'] .dot {
   background: currentColor;
 }
 
@@ -1495,4 +1499,176 @@ input:focus-visible {
 
 [data-theme='pastel'] .raster-fallback {
   filter: saturate(0.8) brightness(1.05) hue-rotate(-10deg);
+}
+
+/* ---------- My Places ---------- */
+.map-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.places-view {
+  position: absolute;
+  inset: 0;
+  z-index: 1003;
+  overflow-y: auto;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.places-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+  padding: calc(env(safe-area-inset-top) + 14px) 16px 12px;
+  background: var(--bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.places-head > * {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.places-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.places-title-row h1 {
+  margin: 0;
+  min-width: 0;
+  font-size: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.places-head .chips {
+  padding-bottom: 2px;
+}
+
+.places-tools {
+  display: flex;
+  gap: 8px;
+}
+
+.places-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.places-search input,
+.places-sort select {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 16px; /* keeps iOS from zooming in */
+}
+
+.places-sort select {
+  width: auto;
+}
+
+.places-list {
+  list-style: none;
+  margin: 0 auto;
+  padding: 8px 12px 24px;
+  max-width: 664px;
+  display: grid;
+  gap: 8px;
+}
+
+.place-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  text-align: left;
+}
+
+.place-row:active {
+  transform: scale(0.99);
+}
+
+.place-badge {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.place-badge.badge-wishlist {
+  background: var(--wishlist);
+}
+
+.place-badge.badge-visited {
+  background: var(--visited);
+}
+
+.place-row-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.place-row-name {
+  font-size: 16px;
+  font-weight: var(--weight-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-row-meta {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place-row-rating {
+  flex: none;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.places-empty {
+  max-width: 420px;
+  margin: 48px auto;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--muted);
 }
