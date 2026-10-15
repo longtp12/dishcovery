@@ -35,7 +35,7 @@ import type { Place, PlaceList, Scope, SharedPlace } from './places'
 const INFO_FIELDS = [
   'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
 ] as const
-const BASE_FIELDS = [...INFO_FIELDS, 'sharedId', 'source', 'status', 'addedAt', 'visitedAt'] as const
+const BASE_FIELDS = [...INFO_FIELDS, 'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'tags'] as const
 const PLACE_FIELDS = [...BASE_FIELDS, 'rating', 'review'] as const
 /** Shared-list places also record who added and who visited them. */
 // Members' reviews (the `reviews` map) are written separately, one member at a time.
@@ -46,7 +46,8 @@ function pick<T extends object>(obj: T, fields: readonly (keyof T)[]) {
   const out: Record<string, unknown> = { updatedAt: Date.now() }
   for (const key of fields) {
     const value = obj[key]
-    if (value !== undefined && value !== null && value !== '') out[key as string] = value
+    if (value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && !value.length))
+      out[key as string] = value
   }
   return out
 }

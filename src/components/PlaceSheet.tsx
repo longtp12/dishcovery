@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { googleMapsUrl } from '../osm'
 import type { Place, PlaceInfo, PlaceStatus } from '../places'
 import ReviewBox, { type OtherReview, type ReviewValue } from './ReviewBox'
+import TagEditor from './TagEditor'
 import { BookmarkIcon, CheckIcon, ClockIcon, CloseIcon, DirectionsIcon, EditIcon, PeopleIcon, PinIcon, TrashIcon } from './Icons'
 
 interface Props {
@@ -18,6 +19,8 @@ interface Props {
   onTarget?: (id: string) => void
   /** Your rating/review of the saved place (and other members' in a shared list). */
   review?: { mine: ReviewValue; others?: OtherReview[]; onChange: (r: { rating: number; text?: string } | null) => void }
+  /** Tag editing for the saved place. */
+  tagging?: { suggestions: string[]; shared: boolean; onChange: (tags: string[]) => void }
   onSave: (status: PlaceStatus, name: string) => void
   onRemove: () => void
   onClose: () => void
@@ -59,6 +62,7 @@ export default function PlaceSheet({
   target,
   onTarget,
   review,
+  tagging,
   onSave,
   onRemove,
   onClose,
@@ -179,6 +183,10 @@ export default function PlaceSheet({
       )}
 
       {saved && <p className="sheet-status">{statusText(saved)}</p>}
+
+      {saved && tagging && (
+        <TagEditor placeKey={`${target ?? ''}:${saved.id}`} tags={saved.tags ?? []} {...tagging} />
+      )}
 
       {saved && review && <ReviewBox placeKey={`${target ?? ''}:${saved.id}`} {...review} />}
 

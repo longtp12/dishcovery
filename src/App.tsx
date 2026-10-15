@@ -14,7 +14,9 @@ import { searchLoadedFood } from './mapFeatures'
 import { lookupPlace, reverseGeocode } from './osm'
 import {
   MINE,
+  SUGGESTED_TAGS,
   infoOf,
+  normalizeTag,
   isSharedCopy,
   samePlace,
   usePlaces,
@@ -34,6 +36,20 @@ type Selection =
   | { type: 'candidate'; info: PlaceInfo; custom: boolean }
   | { type: 'community'; id: string }
   | null
+
+/** A venue kind suggests a broad tag. */
+const KIND_TAGS: Record<string, string> = {
+  restaurant: 'food',
+  'fast food': 'food',
+  'food court': 'food',
+  café: 'coffee',
+  bar: 'drinks',
+  pub: 'drinks',
+  beer: 'drinks',
+  'beer garden': 'drinks',
+  'ice cream': 'dessert',
+  bakery: 'dessert',
+}
 
 /** The plain place details of a community place, linked to it, ready to save. */
 function sharedInfo(s: SharedPlace): PlaceInfo {
@@ -67,6 +83,8 @@ export default function App() {
     update,
     remove,
     setReview,
+    setTags,
+    allTags,
     prefs,
     savePrefs,
     community,
@@ -400,6 +418,23 @@ export default function App() {
     flyTo(p.lat, p.lng)
   }
 
+  // Tag suggestions: from the place's cuisine and kind first, then the tags you use, then defaults.
+  const tagSuggestions = useMemo(() => {
+    const fromPlace = [
+      ...(targetSaved?.cuisine ?? '').split(/[·,;]/),
+      KIND_TAGS[(targetSaved?.kind ?? '').toLowerCase()] ?? '',
+    ].map(normalizeTag)
+    return [...new Set([...fromPlace, ...allTags, ...SUGGESTED_TAGS].filter(Boolean))]
+  }, [targetSaved?.cuisine, targetSaved?.kind, allTags])
+  const sheetTagging =
+    targetSaved && (target === MINE || uid)
+      ? {
+          suggestions: tagSuggestions,
+          shared: target !== MINE,
+          onChange: (tags: string[]) => setTags(target, targetSaved.id, tags),
+        }
+      : undefined
+
   const managedList = managing && managing !== 'new' ? lists.find((l) => l.id === managing) : undefined
 
   return (
@@ -513,6 +548,7 @@ export default function App() {
             target={target}
             onTarget={setTarget}
             review={sheetReview}
+            tagging={sheetTagging}
             onSave={handleSave}
             onRemove={handleRemove}
             onClose={closeSheet}

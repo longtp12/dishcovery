@@ -39,7 +39,7 @@ service cloud.firestore {
     function validPlace(d) {
       return d.keys().hasOnly([
           'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
-          'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt', 'rating', 'review'
+          'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt', 'rating', 'review', 'tags'
         ])
         && placeFields(d)
         && (!('rating' in d) || validRating(d.rating))
@@ -53,6 +53,7 @@ service cloud.firestore {
         && d.source in ['map', 'search', 'custom', 'google']
         && d.addedAt is number
         && (!('visitedAt' in d) || d.visitedAt is number)
+        && (!('tags' in d) || (d.tags is list && d.tags.size() <= 12))
         && optString(d, 'sharedId', 64);
     }
 
@@ -97,7 +98,7 @@ service cloud.firestore {
       return d.keys().hasOnly([
           'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
           'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt',
-          'addedBy', 'addedByName', 'visitedBy', 'visitedByName', 'updatedBy', 'reviews'
+          'addedBy', 'addedByName', 'visitedBy', 'visitedByName', 'updatedBy', 'reviews', 'tags'
         ])
         && placeFields(d)
         && d.keys().hasAll(['addedBy', 'addedByName', 'updatedBy'])

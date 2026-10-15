@@ -1809,3 +1809,112 @@ input:focus-visible {
   line-height: 1.5;
   color: var(--muted);
 }
+
+/* ---------- Tags ---------- */
+.tags {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.tag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tag button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+}
+
+.tag-add,
+.tag-suggestion {
+  border-style: dashed;
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.tag-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tag-edit input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: var(--border);
+  border-radius: calc(var(--radius) - 6px);
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.tag-suggest {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-filter {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  padding-bottom: 2px;
+}
+
+.tag-toggle {
+  flex: none;
+}
+
+.tag-toggle[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.place-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.tag-small {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
+}

@@ -113,6 +113,8 @@ export interface Place extends PlaceInfo {
   visitedBy?: string
   visitedByName?: string
   updatedBy?: string
+  /** Your labels for the place, e.g. "korean", "drinks", "fancy" (shared with members in a shared list). */
+  tags?: string[]
   /** My places only: your private 1–5 star rating and short review. */
   rating?: number
   review?: string
@@ -129,6 +131,18 @@ export interface MemberReview {
 }
 
 export const REVIEW_MAX = 500
+
+export const MAX_TAGS = 12
+export const TAG_MAX_LENGTH = 24
+
+/** Tags offered before you've made your own. */
+export const SUGGESTED_TAGS = [
+  'food', 'drinks', 'coffee', 'dessert', 'vietnamese', 'japanese', 'korean', 'chinese', 'thai', 'western',
+  'fancy', 'cheap', 'date night', 'with friends', 'late night',
+]
+
+/** "  Date  Night " -> "date night" */
+export const normalizeTag = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, TAG_MAX_LENGTH)
 
 const STORAGE_KEY = 'dishcovery.places.v1'
 /** Places moved into a cloud account are kept here too, just in case. */
@@ -463,6 +477,25 @@ export function usePlaces() {
     [placesIn, persist, stamp],
   )
 
+  /** Replaces a saved place's tags (normalised, deduplicated, at most MAX_TAGS). */
+  const setTags = useCallback(
+    (s: Scope, id: string, tags: string[]) => {
+      const current = placesIn(s).find((p) => p.id === id)
+      if (!current) return
+      const clean = [...new Set(tags.map(normalizeTag).filter(Boolean))].slice(0, MAX_TAGS)
+      persist(s, stamp(s, { ...current, tags: clean.length ? clean : undefined }, current))
+    },
+    [placesIn, persist, stamp],
+  )
+
+  /** Every tag in use across your places and shared lists, most used first. */
+  const allTags = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of [...minePlaces, ...Object.values(listPlaces).flat()])
+      for (const t of p.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1)
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t)
+  }, [minePlaces, listPlaces])
+
   /**
    * Your rating (1–5) and short review of a saved place; null clears it. Private in your places;
    * in a shared list every member has their own, which the others see.
@@ -567,6 +600,8 @@ export function usePlaces() {
     update,
     remove,
     setReview,
+    setTags,
+    allTags,
     prefs,
     savePrefs,
     community,

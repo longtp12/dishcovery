@@ -299,3 +299,13 @@ describe('settings', () => {
     await assertFails(setDoc(doc(user('alice'), 'users/alice'), { theme: 'x'.repeat(31) }))
   })
 })
+
+describe('tags', () => {
+  test('own and list places can carry up to 12 tags', async () => {
+    await assertSucceeds(setDoc(doc(user('alice'), 'users/alice/places/p1'), place({ tags: ['korean', 'fancy'] })))
+    await assertFails(setDoc(doc(user('alice'), 'users/alice/places/p1'), place({ tags: Array.from({ length: 13 }, (_, i) => `t${i}`) })))
+    await assertFails(setDoc(doc(user('alice'), 'users/alice/places/p1'), place({ tags: 'korean' })))
+    await seed('lists/l1', list('alice', ['bob@example.com']))
+    await assertSucceeds(setDoc(doc(user('bob'), 'lists/l1/places/p1'), listPlace('bob', { tags: ['drinks'] })))
+  })
+})
