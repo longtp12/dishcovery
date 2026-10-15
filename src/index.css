@@ -124,6 +124,13 @@ body,
   margin: 0;
 }
 
+/* The page itself never scrolls (panels scroll inside it), so iOS has nothing to rubber-band. */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
@@ -251,6 +258,7 @@ input:focus-visible {
 }
 
 .search-panel {
+  overscroll-behavior: contain;
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
@@ -500,6 +508,12 @@ input:focus-visible {
   z-index: 5;
 }
 
+/* In the My Places header the switcher sits on the right, so open its menu leftwards. */
+.places-title-row .list-menu {
+  left: auto;
+  right: 0;
+}
+
 .list-sub {
   display: block;
   font-size: 12.5px;
@@ -530,6 +544,7 @@ input:focus-visible {
   max-width: 420px;
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 18px 18px;
   background: var(--surface);
   color: var(--ink);
@@ -1642,6 +1657,7 @@ input:focus-visible {
   inset: 0;
   z-index: 1003;
   overflow-y: auto;
+  overscroll-behavior: none; /* no iOS bounce at the top and bottom of the list */
   background: var(--bg);
   color: var(--ink);
 }
