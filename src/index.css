@@ -186,6 +186,9 @@ input:focus-visible {
 }
 
 .top-row {
+  /* Above the filter row, so search results cover the list switcher and chips. */
+  position: relative;
+  z-index: 2;
   display: flex;
   gap: 10px;
   max-width: 640px;
@@ -214,7 +217,7 @@ input:focus-visible {
   border: 0;
   background: none;
   outline: none;
-  font-size: 15px;
+  font-size: 16px; /* under 16px, iOS zooms the page in on focus and leaves it zoomed */
   color: var(--ink);
 }
 
