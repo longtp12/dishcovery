@@ -55,6 +55,25 @@
   color-scheme: light;
 }
 
+[data-theme='pastel'] {
+  /* Pastel: soft lavender, mint, blush and peach with plum ink and sticker-style outlines. */
+  --font: 'Bricolage Grotesque', system-ui, sans-serif;
+  --bg: #fbf7ff;
+  --surface: #ffffff;
+  --ink: #2f2a4a;
+  --muted: #6b6488;
+  --visited: #7f70f0;
+  --wishlist: #ffb38a;
+  --accent: #6f5fe8;
+  --on-accent: #ffffff;
+  --radius: 18px;
+  --border: 2px solid #2f2a4a;
+  --shadow: 3px 3px 0 #c9bcff;
+  --shadow-sm: 3px 3px 0 #c9bcff;
+  --weight-strong: 700;
+  color-scheme: light;
+}
+
 /* ---------- Base ---------- */
 * {
   box-sizing: border-box;
@@ -735,6 +754,11 @@ input:focus-visible {
   box-shadow: 2px 2px 0 #111;
 }
 
+[data-theme='pastel'] .account-btn {
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 #c9bcff;
+}
+
 .sync-status {
   display: flex;
   align-items: center;
@@ -803,6 +827,12 @@ input:focus-visible {
   background: linear-gradient(135deg, #fff4d6 50%, #1f4fd8 50%);
   border: 2px solid #111;
   box-shadow: 2px 2px 0 #111;
+}
+
+.swatch-pastel {
+  background: linear-gradient(135deg, #fce6f1 50%, #8b7cf6 50%);
+  border: 2px solid #2f2a4a;
+  box-shadow: 2px 2px 0 #c9bcff;
 }
 
 /* ---------- Place sheet ---------- */
@@ -1145,6 +1175,10 @@ input:focus-visible {
   box-shadow: var(--shadow-sm);
 }
 
+[data-theme='pastel'] .status-btn {
+  box-shadow: var(--shadow-sm);
+}
+
 .sheet-links {
   display: flex;
   flex-wrap: wrap;
@@ -1229,9 +1263,18 @@ input:focus-visible {
   filter: none;
 }
 
+[data-theme='pastel'] .pin {
+  filter: none;
+}
+
 [data-theme='pop'] .pin-body {
   border-color: #111;
   box-shadow: 2px 2px 0 #111;
+}
+
+[data-theme='pastel'] .pin-body {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 #c9bcff;
 }
 
 @keyframes pin-drop {
@@ -1350,6 +1393,13 @@ input:focus-visible {
   box-shadow: 2px 2px 0 #111;
 }
 
+[data-theme='pastel'] .tab.is-active {
+  color: var(--ink);
+  background: var(--wishlist);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 #c9bcff;
+}
+
 /* ---------- Leaflet overrides ---------- */
 .leaflet-container {
   font-family: var(--font);
@@ -1394,6 +1444,11 @@ input:focus-visible {
   box-shadow: 2px 2px 0 #111;
 }
 
+[data-theme='pastel'] .me-dot {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 #c9bcff;
+}
+
 .me-pulse {
   width: 44px;
   height: 44px;
@@ -1436,4 +1491,8 @@ input:focus-visible {
 
 [data-theme='pop'] .raster-fallback {
   filter: sepia(0.15) saturate(1.25);
+}
+
+[data-theme='pastel'] .raster-fallback {
+  filter: saturate(0.8) brightness(1.05) hue-rotate(-10deg);
 }

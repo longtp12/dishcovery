@@ -100,6 +100,30 @@ export const PALETTES: Record<ThemeId, MapPalette> = {
     foodStroke: '#111111',
     foodLabel: '#111111',
   },
+  // Pastel: lavender paper, mint parks, baby-blue water, blush buildings, plum ink.
+  pastel: {
+    bg: '#FBF7FF',
+    residential: '#F5EFFF',
+    park: '#CDF3DD',
+    wood: '#BCEBD0',
+    water: '#C6E7FF',
+    building: '#F7ECF7',
+    buildingOutline: '#EEDDEF',
+    roadMinor: '#FFFFFF',
+    roadMajor: '#FFFFFF',
+    roadCasing: '#DCD2F7',
+    motorway: '#FFD9C2',
+    motorwayCasing: '#F5B796',
+    rail: '#CFC5EC',
+    boundary: '#B9ABE0',
+    label: '#2F2A4A',
+    roadLabel: '#6B6488',
+    waterLabel: '#4A7CC4',
+    halo: '#FBF7FF',
+    food: '#FF7EB3',
+    foodStroke: '#FFFFFF',
+    foodLabel: '#B8437A',
+  },
 }
 
 type Paint = Record<string, unknown>
