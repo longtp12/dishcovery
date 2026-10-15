@@ -1900,6 +1900,13 @@ input:focus-visible {
   flex: none;
 }
 
+.tag-clear {
+  flex: none;
+  border-style: dashed;
+  background: none;
+  color: var(--muted);
+}
+
 .tag-toggle[aria-pressed='true'] {
   background: var(--accent);
   border-color: var(--accent);

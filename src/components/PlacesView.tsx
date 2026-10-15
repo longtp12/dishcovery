@@ -32,7 +32,8 @@ const formatDate = (ts: number) =>
 export default function PlacesView({ title, places, shared, filter, onFilter, switcher, onOpen }: Props) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<Sort>('recent')
-  const [tag, setTag] = useState<string | null>(null)
+  /** Selected tags: a place matches if it has ANY of them. */
+  const [picked, setPicked] = useState<string[]>([])
 
   // Tags used in this list, most used first.
   const tags = useMemo(() => {
@@ -40,7 +41,9 @@ export default function PlacesView({ title, places, shared, filter, onFilter, sw
     for (const p of places) for (const t of p.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1)
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t)
   }, [places])
-  const activeTag = tag && tags.includes(tag) ? tag : null
+  const activeTags = picked.filter((t) => tags.includes(t))
+  const toggleTag = (t: string) =>
+    setPicked((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))
 
   const counts = {
     all: places.length,
@@ -53,7 +56,7 @@ export default function PlacesView({ title, places, shared, filter, onFilter, sw
     const list = places.filter(
       (p) =>
         (filter === 'all' || p.status === filter) &&
-        (!activeTag || (p.tags ?? []).includes(activeTag)) &&
+        (!activeTags.length || (p.tags ?? []).some((t) => activeTags.includes(t))) &&
         (!q || fold([p.name, p.cuisine, p.address, p.kind, ...(p.tags ?? [])].filter(Boolean).join(' ')).includes(q)),
     )
     const by: Record<Sort, (a: Place, b: Place) => number> = {
@@ -62,7 +65,8 @@ export default function PlacesView({ title, places, shared, filter, onFilter, sw
       rating: (a, b) => (ratingOf(b, shared) ?? 0) - (ratingOf(a, shared) ?? 0),
     }
     return [...list].sort(by[sort])
-  }, [places, filter, query, sort, shared, activeTag])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [places, filter, query, sort, shared, activeTags.join('\n')])
 
   return (
     <section className="places-view" aria-labelledby="places-title">
@@ -86,17 +90,22 @@ export default function PlacesView({ title, places, shared, filter, onFilter, sw
           ))}
         </div>
         {tags.length > 0 && (
-          <div className="tag-filter" role="group" aria-label="Filter by tag">
+          <div className="tag-filter" role="group" aria-label="Filter by tags (any of the selected)">
             {tags.map((t) => (
               <button
                 key={t}
                 className="tag tag-toggle"
-                aria-pressed={activeTag === t}
-                onClick={() => setTag(activeTag === t ? null : t)}
+                aria-pressed={activeTags.includes(t)}
+                onClick={() => toggleTag(t)}
               >
                 {t}
               </button>
             ))}
+            {activeTags.length > 1 && (
+              <button className="tag tag-clear" onClick={() => setPicked([])}>
+                Clear
+              </button>
+            )}
           </div>
         )}
         <div className="places-tools">
