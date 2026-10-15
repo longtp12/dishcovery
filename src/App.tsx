@@ -65,6 +65,7 @@ export default function App() {
     save,
     update,
     remove,
+    setReview,
     community,
     renameShared,
     removeShared,
@@ -337,6 +338,26 @@ export default function App() {
   }
 
   const sheetPlace = targetSaved ?? (sheetInfo && (sheetInfo === candidate ? candidate : infoOf(sheetInfo)))
+  // Your rating/review: private in your places; in a shared list, yours plus the other members'.
+  const uid = cloud.user?.uid
+  const myListReview = uid && target !== MINE ? targetSaved?.reviews?.[uid] : undefined
+  const sheetReview =
+    targetSaved && (target === MINE || uid)
+      ? {
+          mine:
+            target === MINE
+              ? { rating: targetSaved.rating, text: targetSaved.review }
+              : { rating: myListReview?.rating, text: myListReview?.text },
+          others:
+            target === MINE
+              ? undefined
+              : Object.entries(targetSaved.reviews ?? {})
+                  .filter(([id]) => id !== uid)
+                  .sort(([, a], [, b]) => b.at - a.at)
+                  .map(([, r]) => ({ name: r.name ?? 'Someone', rating: r.rating, text: r.text })),
+          onChange: (r: { rating: number; text?: string } | null) => setReview(target, targetSaved.id, r),
+        }
+      : undefined
   const managedList = managing && managing !== 'new' ? lists.find((l) => l.id === managing) : undefined
 
   return (
@@ -454,6 +475,7 @@ export default function App() {
             targets={cloud.user && lists.length ? [MINE, ...lists.map((l) => l.id)].map((id) => ({ id, label: listLabel(id) })) : undefined}
             target={target}
             onTarget={setTarget}
+            review={sheetReview}
             onSave={handleSave}
             onRemove={handleRemove}
             onClose={closeSheet}

@@ -14,6 +14,7 @@ import {
   collection,
   connectFirestoreEmulator,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   initializeFirestore,
@@ -34,9 +35,11 @@ import type { Place, PlaceList, Scope, SharedPlace } from './places'
 const INFO_FIELDS = [
   'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
 ] as const
-const PLACE_FIELDS = [...INFO_FIELDS, 'sharedId', 'source', 'status', 'addedAt', 'visitedAt'] as const
+const BASE_FIELDS = [...INFO_FIELDS, 'sharedId', 'source', 'status', 'addedAt', 'visitedAt'] as const
+const PLACE_FIELDS = [...BASE_FIELDS, 'rating', 'review'] as const
 /** Shared-list places also record who added and who visited them. */
-const LIST_PLACE_FIELDS = [...PLACE_FIELDS, 'addedBy', 'addedByName', 'visitedBy', 'visitedByName', 'updatedBy'] as const
+// Members' reviews (the `reviews` map) are written separately, one member at a time.
+const LIST_PLACE_FIELDS = [...BASE_FIELDS, 'addedBy', 'addedByName', 'visitedBy', 'visitedByName', 'updatedBy'] as const
 const SHARED_FIELDS = [...INFO_FIELDS, 'addedBy', 'addedByName', 'createdAt'] as const
 
 function pick<T extends object>(obj: T, fields: readonly (keyof T)[]) {
@@ -62,7 +65,7 @@ export function createCloud(): Cloud {
   if (useEmulators) {
     const host = location.hostname
     connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true })
-    connectFirestoreEmulator(db, host, 8080)
+    connectFirestoreEmulator(db, host, Number(import.meta.env.VITE_FIRESTORE_EMULATOR_PORT) || 8080)
   }
 
   const placesCol = (uid: string, scope: Scope = 'mine') =>
@@ -111,7 +114,21 @@ export function createCloud(): Cloud {
     },
 
     // Writes resolve once the server confirms; the local cache (and UI) updates immediately.
-    putPlace: (uid, scope, place) => setDoc(doc(placesCol(uid, scope), place.id), toDoc(scope, place)),
+    putPlace(uid, scope, place) {
+      const ref = doc(placesCol(uid, scope), place.id)
+      const data = toDoc(scope, place)
+      if (scope === 'mine') return setDoc(ref, data)
+      // Shared-list places: merge so members' reviews stay; clear fields that were removed.
+      for (const key of LIST_PLACE_FIELDS) if (!(key in data)) data[key] = deleteField()
+      return setDoc(ref, data, { merge: true })
+    },
+
+    putReview: (uid, listId, placeId, review) =>
+      updateDoc(doc(placesCol(uid, listId), placeId), {
+        [`reviews.${uid}`]: review ?? deleteField(),
+        updatedBy: uid,
+        updatedAt: Date.now(),
+      }),
 
     deletePlace: (uid, scope, id) => deleteDoc(doc(placesCol(uid, scope), id)),
 

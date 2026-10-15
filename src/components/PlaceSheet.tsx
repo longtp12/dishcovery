@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { googleMapsUrl } from '../osm'
 import type { Place, PlaceInfo, PlaceStatus } from '../places'
+import ReviewBox, { type OtherReview, type ReviewValue } from './ReviewBox'
 import { BookmarkIcon, CheckIcon, ClockIcon, CloseIcon, DirectionsIcon, EditIcon, PeopleIcon, PinIcon, TrashIcon } from './Icons'
 
 interface Props {
@@ -15,6 +16,8 @@ interface Props {
   targets?: { id: string; label: string }[]
   target?: string
   onTarget?: (id: string) => void
+  /** Your rating/review of the saved place (and other members' in a shared list). */
+  review?: { mine: ReviewValue; others?: OtherReview[]; onChange: (r: { rating: number; text?: string } | null) => void }
   onSave: (status: PlaceStatus, name: string) => void
   onRemove: () => void
   onClose: () => void
@@ -55,6 +58,7 @@ export default function PlaceSheet({
   targets,
   target,
   onTarget,
+  review,
   onSave,
   onRemove,
   onClose,
@@ -175,6 +179,8 @@ export default function PlaceSheet({
       )}
 
       {saved && <p className="sheet-status">{statusText(saved)}</p>}
+
+      {saved && review && <ReviewBox placeKey={`${target ?? ''}:${saved.id}`} {...review} />}
 
       <div className="sheet-actions">
         <button

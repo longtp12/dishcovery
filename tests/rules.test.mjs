@@ -237,3 +237,49 @@ describe('shared lists', () => {
     await assertSucceeds(batch.commit())
   })
 })
+
+describe('ratings and reviews', () => {
+  test('own places: private 1–5 rating and short review', async () => {
+    const db = user('alice')
+    await assertSucceeds(setDoc(doc(db, 'users/alice/places/p1'), place({ rating: 4, review: 'Great broth' })))
+    await assertFails(setDoc(doc(db, 'users/alice/places/p1'), place({ rating: 6 })))
+    await assertFails(setDoc(doc(db, 'users/alice/places/p1'), place({ rating: 3.5 })))
+    await assertFails(setDoc(doc(db, 'users/alice/places/p1'), place({ rating: 4, review: 'x'.repeat(501) })))
+    await assertFails(getDoc(doc(user('bob'), 'users/alice/places/p1')))
+  })
+
+  test('list places: members write only their own review', async () => {
+    await seed('lists/l1', list('alice', ['bob@example.com']))
+    await seed('lists/l1/places/p1', listPlace('alice', { reviews: { alice: { rating: 5, text: 'Love it', name: 'alice', at: 1 } } }))
+    const bob = user('bob')
+    const ref = doc(bob, 'lists/l1/places/p1')
+    await assertSucceeds(updateDoc(ref, { 'reviews.bob': { rating: 3, text: 'Okay', name: 'bob', at: 2 }, updatedBy: 'bob' }))
+    // Can't touch someone else's review, or post one in their name.
+    await assertFails(updateDoc(ref, { 'reviews.alice': { rating: 1, at: 3 }, updatedBy: 'bob' }))
+    await assertFails(updateDoc(ref, { 'reviews.carol': { rating: 1, at: 3 }, updatedBy: 'bob' }))
+    const { deleteField } = await import('firebase/firestore')
+    await assertFails(updateDoc(ref, { 'reviews.alice': deleteField(), updatedBy: 'bob' }))
+    // Bad values.
+    await assertFails(updateDoc(ref, { 'reviews.bob': { rating: 0, at: 3 }, updatedBy: 'bob' }))
+    await assertFails(updateDoc(ref, { 'reviews.bob': { rating: 4, at: 3, extra: true }, updatedBy: 'bob' }))
+    await assertFails(updateDoc(ref, { 'reviews.bob': { rating: 4, text: 'x'.repeat(501), at: 3 }, updatedBy: 'bob' }))
+    // Remove your own.
+    await assertSucceeds(updateDoc(ref, { 'reviews.bob': deleteField(), updatedBy: 'bob' }))
+    // Status changes (merged writes) leave everyone's reviews alone.
+    await assertSucceeds(setDoc(ref, { status: 'visited', visitedAt: 4, visitedBy: 'bob', visitedByName: 'bob', updatedBy: 'bob' }, { merge: true }))
+    let kept
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      kept = (await getDoc(doc(ctx.firestore(), 'lists/l1/places/p1'))).data().reviews.alice.rating
+    })
+    if (kept !== 5) throw new Error('alice’s review was lost')
+  })
+
+  test('list places: no private rating fields, and non-members can’t review', async () => {
+    await seed('lists/l1', list('alice', ['bob@example.com']))
+    await seed('lists/l1/places/p1', listPlace('alice'))
+    await assertFails(setDoc(doc(user('alice'), 'lists/l1/places/p2'), listPlace('alice', { rating: 4 })))
+    await assertFails(
+      updateDoc(doc(user('carol'), 'lists/l1/places/p1'), { 'reviews.carol': { rating: 4, at: 1 }, updatedBy: 'carol' }),
+    )
+  })
+})

@@ -1,4 +1,4 @@
-import type { Place, PlaceList, Scope, SharedPlace } from './places'
+import type { MemberReview, Place, PlaceList, Scope, SharedPlace } from './places'
 
 /**
  * Optional cloud sync (Firebase Auth + Firestore, free Spark plan).
@@ -38,6 +38,8 @@ export interface Cloud {
   watchPlaces(uid: string, scope: Scope, cb: (places: Place[]) => void, onError: (err: Error) => void): () => void
   putPlace(uid: string, scope: Scope, place: Place): Promise<void>
   deletePlace(uid: string, scope: Scope, id: string): Promise<void>
+  /** Sets (or with null, clears) your own review of a shared-list place; other members' are untouched. */
+  putReview(uid: string, listId: string, placeId: string, review: MemberReview | null): Promise<void>
   /** Copies places that aren't in the account yet (matched by id or OSM id). Returns how many were added. */
   migrate(uid: string, local: Place[]): Promise<number>
 

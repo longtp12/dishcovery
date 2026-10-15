@@ -113,7 +113,22 @@ export interface Place extends PlaceInfo {
   visitedBy?: string
   visitedByName?: string
   updatedBy?: string
+  /** My places only: your private 1–5 star rating and short review. */
+  rating?: number
+  review?: string
+  /** Shared lists only: each member's rating and review, by uid. */
+  reviews?: Record<string, MemberReview>
 }
+
+export interface MemberReview {
+  rating: number
+  text?: string
+  /** The reviewer's display name. */
+  name?: string
+  at: number
+}
+
+export const REVIEW_MAX = 500
 
 const STORAGE_KEY = 'dishcovery.places.v1'
 /** Places moved into a cloud account are kept here too, just in case. */
@@ -430,6 +445,27 @@ export function usePlaces() {
     [placesIn, persist, stamp],
   )
 
+  /**
+   * Your rating (1–5) and short review of a saved place; null clears it. Private in your places;
+   * in a shared list every member has their own, which the others see.
+   */
+  const setReview = useCallback(
+    (s: Scope, id: string, review: { rating: number; text?: string } | null) => {
+      const current = placesIn(s).find((p) => p.id === id)
+      if (!current) return
+      const text = review?.text?.trim().slice(0, REVIEW_MAX) || undefined
+      if (s === MINE) {
+        persist(s, { ...current, rating: review?.rating, review: review ? text : undefined })
+        return
+      }
+      const c = cloudRef.current
+      if (!user || !c) return
+      const mine = review && { rating: review.rating, ...(text ? { text } : {}), name: displayName(user), at: Date.now() }
+      c.putReview(user.uid, s, id, mine).catch(() => setMessage('Couldn’t save your review.'))
+    },
+    [placesIn, persist, user],
+  )
+
   const remove = useCallback(
     (s: Scope, id: string) => {
       const c = cloudRef.current
@@ -512,6 +548,7 @@ export function usePlaces() {
     save,
     update,
     remove,
+    setReview,
     community,
     renameShared,
     removeShared,

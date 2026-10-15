@@ -4,7 +4,9 @@ rules_version = '2';
 // sharedPlaces/{id}: community places added from Google Maps links. Every signed-in user can read
 //   and add them; only the person who added one can edit or delete it.
 // lists/{listId}: shared lists. Members are invited by (verified) Google email; only the owner can
-//   rename, change members or delete. lists/{listId}/places/{placeId}: any member can read and write.
+//   rename, change members or delete. lists/{listId}/places/{placeId}: any member can read and write;
+//   each member's rating/review lives in its `reviews` map and only they can change their entry.
+// Ratings/reviews on users/{uid}/places are private like the rest of your own places.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -37,9 +39,11 @@ service cloud.firestore {
     function validPlace(d) {
       return d.keys().hasOnly([
           'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
-          'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt'
+          'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt', 'rating', 'review'
         ])
-        && placeFields(d);
+        && placeFields(d)
+        && (!('rating' in d) || validRating(d.rating))
+        && optString(d, 'review', 500);
     }
 
     function placeFields(d) {
@@ -64,12 +68,36 @@ service cloud.firestore {
         && d.createdAt is number;
     }
 
+    function validRating(r) {
+      return r is int && r >= 1 && r <= 5;
+    }
+
+    // One member's review in a list place's `reviews` map (keyed by uid).
+    function validReview(r) {
+      return r is map
+        && r.keys().hasOnly(['rating', 'text', 'name', 'at'])
+        && r.keys().hasAll(['rating', 'at'])
+        && validRating(r.rating)
+        && optString(r, 'text', 500)
+        && optString(r, 'name', 100)
+        && r.at is number;
+    }
+
+    // Members may only add, change or remove their own review.
+    function reviewsOk(d, before) {
+      let after = d.get('reviews', {});
+      let changed = after.diff(before.get('reviews', {})).affectedKeys();
+      return after is map && after.size() <= 60
+        && changed.hasOnly([request.auth.uid])
+        && (!(request.auth.uid in after) || validReview(after[request.auth.uid]));
+    }
+
     // A list place: a place plus who added it, who visited it and who changed it last.
     function validListPlace(d) {
       return d.keys().hasOnly([
           'name', 'lat', 'lng', 'osmId', 'kind', 'cuisine', 'address', 'openingHours', 'googleUrl', 'googleId',
           'sharedId', 'source', 'status', 'addedAt', 'visitedAt', 'updatedAt',
-          'addedBy', 'addedByName', 'visitedBy', 'visitedByName', 'updatedBy'
+          'addedBy', 'addedByName', 'visitedBy', 'visitedByName', 'updatedBy', 'reviews'
         ])
         && placeFields(d)
         && d.keys().hasAll(['addedBy', 'addedByName', 'updatedBy'])
@@ -162,7 +190,8 @@ service cloud.firestore {
         allow create: if isMember(theList()) && placeId.size() <= 64
           && validListPlace(request.resource.data)
           && request.resource.data.addedBy == request.auth.uid
-          && (!('visitedBy' in request.resource.data) || request.resource.data.visitedBy == request.auth.uid);
+          && (!('visitedBy' in request.resource.data) || request.resource.data.visitedBy == request.auth.uid)
+          && reviewsOk(request.resource.data, {});
         // Who added it (and when) stays; "visited by" can only become you, stay, or be cleared.
         allow update: if isMember(theList())
           && validListPlace(request.resource.data)
@@ -171,7 +200,8 @@ service cloud.firestore {
           && request.resource.data.addedAt == resource.data.addedAt
           && (!('visitedBy' in request.resource.data)
             || request.resource.data.visitedBy == resource.data.get('visitedBy', null)
-            || request.resource.data.visitedBy == request.auth.uid);
+            || request.resource.data.visitedBy == request.auth.uid)
+          && reviewsOk(request.resource.data, resource.data);
       }
     }
 
