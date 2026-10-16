@@ -309,3 +309,29 @@ describe('tags', () => {
     await assertSucceeds(setDoc(doc(user('bob'), 'lists/l1/places/p1'), listPlace('bob', { tags: ['drinks'] })))
   })
 })
+
+describe('member invites', () => {
+  test('members can only invite when the owner allows it', async () => {
+    const { arrayUnion } = await import('firebase/firestore')
+    await seed('lists/l1', list('alice', ['bob@example.com']))
+    const bob = user('bob')
+    await assertFails(updateDoc(doc(bob, 'lists/l1'), { memberEmails: arrayUnion('carol@example.com') }))
+    // Only the owner can turn it on.
+    await assertFails(updateDoc(doc(bob, 'lists/l1'), { membersCanInvite: true }))
+    await assertSucceeds(updateDoc(doc(user('alice'), 'lists/l1'), { membersCanInvite: true }))
+    await assertSucceeds(updateDoc(doc(bob, 'lists/l1'), { memberEmails: arrayUnion('carol@example.com'), updatedAt: 2 }))
+    await assertSucceeds(getDoc(doc(user('carol'), 'lists/l1')))
+  })
+
+  test('invites only add: no removing people or other changes', async () => {
+    await seed('lists/l1', list('alice', ['bob@example.com', 'dan@example.com'], { membersCanInvite: true }))
+    const bob = user('bob')
+    // Removing dan while adding carol.
+    await assertFails(updateDoc(doc(bob, 'lists/l1'), { memberEmails: ['alice@example.com', 'bob@example.com', 'carol@example.com'] }))
+    await assertFails(updateDoc(doc(bob, 'lists/l1'), { name: 'Bob’s list', memberEmails: ['alice@example.com', 'bob@example.com', 'dan@example.com', 'carol@example.com'] }))
+    await assertFails(updateDoc(doc(bob, 'lists/l1'), { membersCanInvite: false }))
+    // Non-members can't invite themselves even when invites are on.
+    const { arrayUnion } = await import('firebase/firestore')
+    await assertFails(updateDoc(doc(user('mallory'), 'lists/l1'), { memberEmails: arrayUnion('mallory@example.com') }))
+  })
+})

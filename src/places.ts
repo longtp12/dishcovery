@@ -50,6 +50,8 @@ export interface PlaceList {
   memberEmails: string[]
   /** Everyone who has opened it signed in. */
   memberUids: string[]
+  /** Set by the owner: members may invite people too (only the owner can remove them). */
+  membersCanInvite?: boolean
   createdAt: number
 }
 
@@ -531,11 +533,12 @@ export function usePlaces() {
 
   /** Creates a shared list (and switches to it). */
   const createList = useCallback(
-    (name: string, emails: string[]) => {
+    (name: string, emails: string[], membersCanInvite = false) => {
       const c = cloudRef.current
       if (!user || !c) return
       const { id, done } = c.createList({
         name,
+        membersCanInvite,
         ownerUid: user.uid,
         ownerName: displayName(user),
         memberEmails: normalizeEmails([...(user.email ? [user.email] : []), ...emails]),
@@ -548,9 +551,19 @@ export function usePlaces() {
     [user, setActiveScope],
   )
 
-  const updateList = useCallback((id: string, patch: { name?: string; memberEmails?: string[] }) => {
-    const p = patch.memberEmails ? { ...patch, memberEmails: normalizeEmails(patch.memberEmails) } : patch
-    cloudRef.current?.updateList(id, p).catch(() => setMessage('Couldn’t update that list.'))
+  const updateList = useCallback(
+    (id: string, patch: { name?: string; memberEmails?: string[]; membersCanInvite?: boolean }) => {
+      const p = patch.memberEmails ? { ...patch, memberEmails: normalizeEmails(patch.memberEmails) } : patch
+      cloudRef.current?.updateList(id, p).catch(() => setMessage('Couldn’t update that list.'))
+    },
+    [],
+  )
+
+  /** A member adds people to a list whose owner allows it (adding only). */
+  const inviteToList = useCallback((id: string, emails: string[]) => {
+    const add = normalizeEmails(emails)
+    if (!add.length) return
+    cloudRef.current?.inviteToList(id, add).catch(() => setMessage('Couldn’t invite them. The owner may have turned invites off.'))
   }, [])
 
   const leaveList = useCallback(
@@ -594,6 +607,7 @@ export function usePlaces() {
     lists,
     createList,
     updateList,
+    inviteToList,
     leaveList,
     deleteList,
     save,

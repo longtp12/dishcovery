@@ -7,8 +7,10 @@ interface Props {
   /** The list to show; null to create a new one. */
   list: PlaceList | null
   user: CloudUser
-  onCreate: (name: string, emails: string[]) => void
-  onSave: (id: string, patch: { name?: string; memberEmails?: string[] }) => void
+  onCreate: (name: string, emails: string[], membersCanInvite: boolean) => void
+  onSave: (id: string, patch: { name?: string; memberEmails?: string[]; membersCanInvite?: boolean }) => void
+  /** A member (not the owner) invites people to a list that allows it. */
+  onInvite: (id: string, emails: string[]) => void
   onLeave: (id: string) => void
   onDelete: (id: string) => void
   onClose: () => void
@@ -17,11 +19,17 @@ interface Props {
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_MEMBERS = 50
 
-/** Create a shared list, or rename it and manage who's in it (owner); members can view and leave. */
-export default function ListManager({ list, user, onCreate, onSave, onLeave, onDelete, onClose }: Props) {
+/**
+ * Create a shared list, or rename it and manage who's in it (owner). Members can view and leave,
+ * and invite people when the owner allows it (adding only; removing stays with the owner).
+ */
+export default function ListManager({ list, user, onCreate, onSave, onInvite, onLeave, onDelete, onClose }: Props) {
   const isOwner = !list || list.ownerUid === user.uid
+  const canInvite = isOwner || Boolean(list?.membersCanInvite)
+  const existing = list?.memberEmails ?? []
   const myEmail = user.email?.toLowerCase() ?? ''
   const [name, setName] = useState(list?.name ?? '')
+  const [allowInvites, setAllowInvites] = useState(Boolean(list?.membersCanInvite))
   const [emails, setEmails] = useState<string[]>(() =>
     (list?.memberEmails ?? []).filter((e) => e !== myEmail || !isOwner),
   )
@@ -43,7 +51,7 @@ export default function ListManager({ list, user, onCreate, onSave, onLeave, onD
       setError(`“${bad}” doesn’t look like an email address.`)
       return false
     }
-    const next = normalizeEmails([...emails, ...found]).filter((e) => e !== myEmail)
+    const next = normalizeEmails([...emails, ...found]).filter((e) => e !== myEmail || !isOwner)
     if (next.length + 1 > MAX_MEMBERS) {
       setError(`A list can have up to ${MAX_MEMBERS} people.`)
       return false
@@ -59,15 +67,19 @@ export default function ListManager({ list, user, onCreate, onSave, onLeave, onD
     if (!trimmed || !addDraft()) return
     // Typed but not yet added emails count too.
     const pending = normalizeEmails(draft.split(/[\s,;]+/)).filter((e) => EMAIL.test(e))
-    const all = normalizeEmails([...emails, ...pending]).filter((e) => e !== myEmail)
-    if (!list) onCreate(trimmed, all)
-    else {
+    const all = normalizeEmails([...emails, ...pending]).filter((e) => e !== myEmail || !isOwner)
+    if (!list) onCreate(trimmed, all, allowInvites)
+    else if (!isOwner) {
+      const added = all.filter((e) => !existing.includes(e))
+      if (added.length) onInvite(list.id, added)
+    } else {
       const memberEmails = normalizeEmails([myEmail, ...all])
       const changedMembers =
         memberEmails.length !== list.memberEmails.length || memberEmails.some((e) => !list.memberEmails.includes(e))
       const patch = {
         ...(trimmed !== list.name ? { name: trimmed } : {}),
         ...(changedMembers ? { memberEmails } : {}),
+        ...(allowInvites !== Boolean(list.membersCanInvite) ? { membersCanInvite: allowInvites } : {}),
       }
       if (Object.keys(patch).length) onSave(list.id, patch)
     }
@@ -123,7 +135,8 @@ export default function ListManager({ list, user, onCreate, onSave, onLeave, onD
                 {e === myEmail ? (
                   <span className="member-tag">you</span>
                 ) : (
-                  isOwner && (
+                  // The owner can remove anyone; a member only the people they've just typed in.
+                  (isOwner || !existing.includes(e)) && (
                     <button
                       className="member-remove"
                       aria-label={`Remove ${e}`}
@@ -136,7 +149,7 @@ export default function ListManager({ list, user, onCreate, onSave, onLeave, onD
               </li>
             ))}
           </ul>
-          {isOwner && (
+          {canInvite && (
             <div className="member-add">
               <input
                 type="email"
@@ -157,7 +170,17 @@ export default function ListManager({ list, user, onCreate, onSave, onLeave, onD
           )}
           {error && <p className="modal-error">{error}</p>}
           {isOwner && (
+            <label className="toggle-row">
+              <input type="checkbox" checked={allowInvites} onChange={(e) => setAllowInvites(e.target.checked)} />
+              <span>
+                Let members invite people
+                <span className="toggle-hint">Only you can remove people, rename or delete the list.</span>
+              </span>
+            </label>
+          )}
+          {canInvite && (
             <p className="modal-note">
+              {!isOwner && 'The owner lets members invite people. '}
               They’ll see this list after signing in to Dishcovery with that Google account.{' '}
               <button className="link-btn" onClick={copyLink}>
                 {copied ? 'Link copied' : 'Copy app link'}
@@ -196,6 +219,15 @@ export default function ListManager({ list, user, onCreate, onSave, onLeave, onD
           {isOwner && (
             <button className="account-btn primary" disabled={!trimmed} onClick={submit}>
               {list ? 'Save' : 'Create list'}
+            </button>
+          )}
+          {!isOwner && canInvite && (
+            <button
+              className="account-btn primary"
+              disabled={!draft.trim() && emails.every((e) => existing.includes(e))}
+              onClick={submit}
+            >
+              Invite
             </button>
           )}
         </div>

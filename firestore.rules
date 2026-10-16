@@ -4,7 +4,7 @@ rules_version = '2';
 // sharedPlaces/{id}: community places added from Google Maps links. Every signed-in user can read
 //   and add them; only the person who added one can edit or delete it.
 // lists/{listId}: shared lists. Members are invited by (verified) Google email; only the owner can
-//   rename, change members or delete. lists/{listId}/places/{placeId}: any member can read and write;
+//   rename, change members or delete; if the owner sets membersCanInvite, members may add people too. lists/{listId}/places/{placeId}: any member can read and write;
 //   each member's rating/review lives in its `reviews` map and only they can change their entry.
 // Ratings/reviews on users/{uid}/places are private like the rest of your own places.
 service cloud.firestore {
@@ -110,13 +110,16 @@ service cloud.firestore {
     }
 
     function validList(d) {
-      return d.keys().hasOnly(['name', 'ownerUid', 'ownerName', 'memberEmails', 'memberUids', 'createdAt', 'updatedAt'])
+      return d.keys().hasOnly([
+          'name', 'ownerUid', 'ownerName', 'memberEmails', 'memberUids', 'membersCanInvite', 'createdAt', 'updatedAt'
+        ])
         && d.keys().hasAll(['name', 'ownerUid', 'ownerName', 'memberEmails', 'memberUids', 'createdAt'])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80
         && d.ownerName is string && d.ownerName.size() <= 100
         && d.memberEmails is list && d.memberEmails.size() <= 50
         && d.memberUids is list && d.memberUids.size() <= 60
         && d.createdAt is number
+        && (!('membersCanInvite' in d) || d.membersCanInvite is bool)
         && (!('updatedAt' in d) || d.updatedAt is number);
     }
 
@@ -170,7 +173,7 @@ service cloud.firestore {
         && validList(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.createdAt == resource.data.createdAt
-        && (resource.data.ownerUid == request.auth.uid || joining() || leaving());
+        && (resource.data.ownerUid == request.auth.uid || joining() || leaving() || inviting());
       allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
       // An invited user adds just their own uid.
@@ -179,6 +182,14 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
           && request.resource.data.memberUids.toSet()
             == resource.data.memberUids.toSet().union([request.auth.uid].toSet());
+      }
+
+      // When the owner allows it, a member may add people (only add: no removing or other changes).
+      function inviting() {
+        return resource.data.get('membersCanInvite', false) == true
+          && isInvited(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberEmails', 'updatedAt'])
+          && request.resource.data.memberEmails.toSet().hasAll(resource.data.memberEmails.toSet());
       }
 
       // A member removes just their own email and uid.

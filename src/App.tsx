@@ -77,6 +77,7 @@ export default function App() {
     lists,
     createList,
     updateList,
+    inviteToList,
     leaveList,
     deleteList,
     save,
@@ -571,11 +572,15 @@ export default function App() {
           <ListManager
             list={managedList ?? null}
             user={cloud.user}
-            onCreate={(name, emails) => {
-              createList(name, emails)
+            onCreate={(name, emails, membersCanInvite) => {
+              createList(name, emails, membersCanInvite)
               setNotice(`Created “${name}”. Places you save now go to this list.`)
             }}
             onSave={updateList}
+            onInvite={(id, emails) => {
+              inviteToList(id, emails)
+              setNotice(`Invited ${emails.length === 1 ? emails[0] : `${emails.length} people`} to “${listLabel(id)}”`)
+            }}
             onLeave={(id) => {
               leaveList(id)
               setNotice(`Left “${listLabel(id)}”`)

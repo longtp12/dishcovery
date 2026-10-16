@@ -53,7 +53,7 @@ function pick<T extends object>(obj: T, fields: readonly (keyof T)[]) {
 }
 
 const toDoc = (scope: Scope, place: Place) => pick(place, scope === 'mine' ? PLACE_FIELDS : LIST_PLACE_FIELDS)
-const LIST_FIELDS = ['name', 'ownerUid', 'ownerName', 'memberEmails', 'memberUids', 'createdAt'] as const
+const LIST_FIELDS = ['name', 'ownerUid', 'ownerName', 'memberEmails', 'memberUids', 'membersCanInvite', 'createdAt'] as const
 
 export function createCloud(): Cloud {
   const app = initializeApp(firebaseConfig)
@@ -200,6 +200,9 @@ export function createCloud(): Cloud {
     },
 
     updateList: (id, patch) => updateDoc(doc(listsCol, id), { ...patch, updatedAt: Date.now() }),
+
+    inviteToList: (id, emails) =>
+      updateDoc(doc(listsCol, id), { memberEmails: arrayUnion(...emails), updatedAt: Date.now() }),
 
     joinList: (id, uid) => updateDoc(doc(listsCol, id), { memberUids: arrayUnion(uid), updatedAt: Date.now() }),
 

@@ -57,7 +57,9 @@ export interface Cloud {
   watchLists(user: CloudUser, cb: (lists: PlaceList[]) => void, onError: (err: Error) => void): () => void
   /** Returns the new list's id straight away; the write syncs in the background. */
   createList(list: Omit<PlaceList, 'id'>): { id: string; done: Promise<void> }
-  updateList(id: string, patch: Partial<Pick<PlaceList, 'name' | 'memberEmails'>>): Promise<void>
+  updateList(id: string, patch: Partial<Pick<PlaceList, 'name' | 'memberEmails' | 'membersCanInvite'>>): Promise<void>
+  /** Adds emails to a list's members (a member doing this needs the owner's membersCanInvite). */
+  inviteToList(id: string, emails: string[]): Promise<void>
   joinList(id: string, uid: string): Promise<void>
   leaveList(id: string, uid: string, email: string): Promise<void>
   /** Deletes the list and all its places (owner only). */
